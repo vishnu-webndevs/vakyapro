@@ -7,10 +7,12 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -69,19 +71,9 @@ class AuthController extends Controller
             'token' => 'required|string',
         ]);
 
-        // Note: Install google/apiclient via composer to use this in production
-        // $payload = $this->verifyGoogleToken($request->token);
+        $payload = $this->verifyGoogleIdToken($request->token);
 
-        // Mock implementation for development/testing
-        // In real app, you will decode the Google ID token here
-        $payload = [
-            'email' => 'test-google@example.com',
-            'name' => 'Google Test User',
-            'sub' => 'google-123456',
-            'picture' => 'https://via.placeholder.com/150',
-        ];
-
-        if (! $payload) {
+        if (! $payload || empty($payload['email'])) {
             return response()->json(['message' => 'Invalid Google Token'], 401);
         }
 
@@ -89,19 +81,23 @@ class AuthController extends Controller
 
         if (! $user) {
             $user = User::create([
-                'name' => $payload['name'],
+                'name' => $payload['name'] ?? 'Google User',
                 'email' => $payload['email'],
-                'password' => Str::random(16), // Random password for security
-                'google_id' => $payload['sub'],
+                'password' => Hash::make(Str::random(32)),
+                'google_id' => $payload['sub'] ?? null,
                 'avatar' => $payload['picture'] ?? null,
             ]);
         } else {
-            if (! $user->google_id) {
-                $user->update([
-                    'google_id' => $payload['sub'],
-                    'avatar' => $payload['picture'] ?? $user->avatar,
-                ]);
-            }
+            $user->update([
+                'google_id' => $payload['sub'] ?? $user->google_id,
+                'avatar' => $payload['picture'] ?? $user->avatar,
+            ]);
+        }
+
+        if (! empty($payload['email_verified']) && ! $user->email_verified_at) {
+            $user->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -114,21 +110,33 @@ class AuthController extends Controller
         ]);
     }
 
-    private function verifyGoogleToken($token)
+    private function verifyGoogleIdToken(string $token): ?array
     {
-        /*
-        // Install 'google/apiclient' via composer to uncomment this block
         try {
-            $client = new \Google_Client(['client_id' => config('services.google.client_id')]);
-            $payload = $client->verifyIdToken($token);
-            if ($payload) {
-                return $payload;
-            }
-        } catch (\Exception $e) {
-            // Log error
+            $response = Http::timeout(5)->get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $token,
+            ]);
+        } catch (Throwable $e) {
+            return null;
         }
-        */
-        return null;
+
+        if (! $response->ok()) {
+            return null;
+        }
+
+        $payload = $response->json();
+
+        $expectedClientId = env('GOOGLE_CLIENT_ID');
+        if ($expectedClientId && (($payload['aud'] ?? null) !== $expectedClientId)) {
+            return null;
+        }
+
+        $issuer = $payload['iss'] ?? null;
+        if ($issuer && ! in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true)) {
+            return null;
+        }
+
+        return $payload;
     }
 
     public function emailRegister(Request $request)
