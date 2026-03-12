@@ -7,8 +7,8 @@ FROM php:8.2-apache AS app
 WORKDIR /var/www/html
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libzip-dev unzip \
- && docker-php-ext-install pdo_mysql zip opcache \
+ && apt-get install -y --no-install-recommends libpq-dev libzip-dev unzip \
+ && docker-php-ext-install pdo_mysql pdo_pgsql pgsql zip opcache \
  && a2enmod rewrite \
  && rm -rf /var/lib/apt/lists/*
 
