@@ -25,6 +25,6 @@ class GeminiService implements AIProviderInterface
 
         // return $response->json('candidates.0.content.parts.0.text');
 
-        return "Simulated Gemini Response for: " . substr($prompt, 0, 50) . "...";
+        return 'Simulated Gemini Response for: '.substr($prompt, 0, 50).'...';
     }
 }

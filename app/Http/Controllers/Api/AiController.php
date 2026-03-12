@@ -57,11 +57,11 @@ class AiController extends Controller
                 if ($chunk === '') {
                     continue;
                 }
-                echo "data: ".json_encode(['delta' => $chunk])."\n\n";
+                echo 'data: '.json_encode(['delta' => $chunk])."\n\n";
                 ob_flush();
                 flush();
             }
-            echo "data: ".json_encode(['done' => true])."\n\n";
+            echo 'data: '.json_encode(['done' => true])."\n\n";
             ob_flush();
             flush();
         }, 200, [

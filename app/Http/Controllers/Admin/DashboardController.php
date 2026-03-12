@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
@@ -15,7 +14,7 @@ class DashboardController extends Controller
             'prompts_today' => 5421,
             'tokens_today' => 1245000,
             'estimated_cost_today' => 182.45,
-            'avg_response_time_ms' => 820
+            'avg_response_time_ms' => 820,
         ]);
     }
 }

@@ -17,4 +17,3 @@ class ServiceApiKey extends Model
         'updated_by_admin_id',
     ];
 }
-

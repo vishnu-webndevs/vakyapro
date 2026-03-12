@@ -20,6 +20,7 @@ class ChatController extends Controller
     {
         $this->ai = $ai;
     }
+
     public function index(Request $request)
     {
         $query = Chat::with('customer')

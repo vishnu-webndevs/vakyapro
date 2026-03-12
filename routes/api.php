@@ -1,22 +1,21 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\PromptController;
-use App\Http\Controllers\Admin\CostController;
-use App\Http\Controllers\Admin\PlanController;
-use App\Http\Controllers\Admin\TemplateController;
-use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\AuthController;
-use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\ChatAnalyticsController;
+use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\CostController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\PromptController;
 use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Api\AuthController as UserAuthController;
+use App\Http\Controllers\Admin\SystemLogController;
+use App\Http\Controllers\Admin\TemplateController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\AiController as UserAiController;
+use App\Http\Controllers\Api\AuthController as UserAuthController;
 use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
 use App\Http\Controllers\Api\PromptController as UserPromptController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,7 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/otp/verify', [UserAuthController::class, 'verifyOtp']);
         Route::post('/auth/otp/resend', [UserAuthController::class, 'resendOtp']);
     }
-    
+
     // Prompts
     Route::post('/prompts/generate', [UserPromptController::class, 'generate']);
     Route::get('/prompts', [UserPromptController::class, 'index']);

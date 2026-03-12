@@ -25,4 +25,3 @@ class Customer extends Model
         return $this->hasMany(Chat::class);
     }
 }
-

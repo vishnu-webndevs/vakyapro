@@ -16,4 +16,3 @@ class ServiceApiKeyBackup extends Model
         'rotated_by_admin_id',
     ];
 }
-

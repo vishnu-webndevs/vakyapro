@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -70,32 +71,32 @@ class AuthController extends Controller
 
         // Note: Install google/apiclient via composer to use this in production
         // $payload = $this->verifyGoogleToken($request->token);
-        
+
         // Mock implementation for development/testing
         // In real app, you will decode the Google ID token here
         $payload = [
             'email' => 'test-google@example.com',
             'name' => 'Google Test User',
             'sub' => 'google-123456',
-            'picture' => 'https://via.placeholder.com/150'
+            'picture' => 'https://via.placeholder.com/150',
         ];
 
-        if (!$payload) {
-             return response()->json(['message' => 'Invalid Google Token'], 401);
+        if (! $payload) {
+            return response()->json(['message' => 'Invalid Google Token'], 401);
         }
 
         $user = User::where('email', $payload['email'])->first();
 
-        if (!$user) {
+        if (! $user) {
             $user = User::create([
                 'name' => $payload['name'],
                 'email' => $payload['email'],
-                'password' => \Illuminate\Support\Str::random(16), // Random password for security
+                'password' => Str::random(16), // Random password for security
                 'google_id' => $payload['sub'],
                 'avatar' => $payload['picture'] ?? null,
             ]);
         } else {
-            if (!$user->google_id) {
+            if (! $user->google_id) {
                 $user->update([
                     'google_id' => $payload['sub'],
                     'avatar' => $payload['picture'] ?? $user->avatar,

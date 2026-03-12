@@ -28,4 +28,3 @@ class ChatMessage extends Model
         return $this->belongsTo(Chat::class);
     }
 }
-

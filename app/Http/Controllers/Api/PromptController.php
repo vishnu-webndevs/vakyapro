@@ -36,18 +36,18 @@ class PromptController extends Controller
                 $request->user()->prompts()->create([
                     'original_prompt' => $request->input('prompt'),
                     'refined_prompt' => $result,
-                    'options' => $options
+                    'options' => $options,
                 ]);
             }
 
             return response()->json([
                 'success' => true,
-                'data' => $result
+                'data' => $result,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -59,7 +59,7 @@ class PromptController extends Controller
             ->latest()
             ->select(['id', 'original_prompt', 'refined_prompt', 'created_at'])
             ->paginate(20);
-            
+
         return response()->json($prompts);
     }
 }
