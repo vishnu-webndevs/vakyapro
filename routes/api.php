@@ -1,0 +1,110 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\PromptController;
+use App\Http\Controllers\Admin\CostController;
+use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\TemplateController;
+use App\Http\Controllers\Admin\SystemLogController;
+use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\ChatAnalyticsController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Api\AuthController as UserAuthController;
+use App\Http\Controllers\Api\AiController as UserAiController;
+use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
+use App\Http\Controllers\Api\PromptController as UserPromptController;
+
+/*
+|--------------------------------------------------------------------------
+| User API Routes
+|--------------------------------------------------------------------------
+*/
+
+// Public Auth
+Route::post('/auth/register', [UserAuthController::class, 'register']);
+Route::post('/auth/login', [UserAuthController::class, 'login']);
+Route::post('/auth/google', [UserAuthController::class, 'googleLogin']);
+Route::post('/auth/email/register', [UserAuthController::class, 'emailRegister']);
+Route::post('/auth/email/verify', [UserAuthController::class, 'emailVerify']);
+Route::post('/auth/email/resend', [UserAuthController::class, 'emailResend']);
+
+// Public Data
+Route::get('/plans', [PlanController::class, 'publicIndex']);
+
+// Protected User Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/logout', [UserAuthController::class, 'logout']);
+    Route::get('/auth/me', [UserAuthController::class, 'me']);
+    Route::put('/profile', [UserAuthController::class, 'updateProfile']);
+    if (env('FEATURE_PHONE_OTP', false)) {
+        Route::post('/auth/otp/request', [UserAuthController::class, 'requestOtp']);
+        Route::post('/auth/otp/verify', [UserAuthController::class, 'verifyOtp']);
+        Route::post('/auth/otp/resend', [UserAuthController::class, 'resendOtp']);
+    }
+    
+    // Prompts
+    Route::post('/prompts/generate', [UserPromptController::class, 'generate']);
+    Route::get('/prompts', [UserPromptController::class, 'index']);
+
+    // Chat Sessions
+    Route::get('/chat-sessions', [UserChatSessionController::class, 'index']);
+    Route::post('/chat-sessions', [UserChatSessionController::class, 'store']);
+    Route::get('/chat-sessions/{chatSession}', [UserChatSessionController::class, 'show']);
+    Route::put('/chat-sessions/{chatSession}', [UserChatSessionController::class, 'upsert']);
+    Route::delete('/chat-sessions/{chatSession}', [UserChatSessionController::class, 'destroy']);
+
+    // AI
+    Route::post('/ai/chat', [UserAiController::class, 'chat']);
+    Route::post('/ai/chat/stream', [UserAiController::class, 'chatStream']);
+    Route::post('/ai/image', [UserAiController::class, 'image']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Admin API Routes
+|--------------------------------------------------------------------------
+*/
+
+// Admin Auth
+Route::post('/admin/login', [AuthController::class, 'login']);
+
+// Admin Routes
+Route::prefix('admin')->middleware('auth:admin')->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    Route::get('/chats', [ChatController::class, 'index']);
+    Route::post('/chats', [ChatController::class, 'createOrAttach']);
+    Route::get('/chats/{chat}', [ChatController::class, 'show']);
+    Route::post('/chats/{chat}/messages', [ChatController::class, 'sendMessage']);
+
+    Route::get('/chat-analytics', [ChatAnalyticsController::class, 'index']);
+
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::put('/users/{id}/status', [UserController::class, 'updateStatus']);
+    Route::put('/users/{id}/plan', [UserController::class, 'updatePlan']);
+    Route::post('/users/{id}/reset-credits', [UserController::class, 'resetCredits']);
+
+    Route::get('/prompts', [PromptController::class, 'index']);
+    Route::get('/prompts/{id}', [PromptController::class, 'show']);
+    Route::put('/prompts/{id}/flag', [PromptController::class, 'flag']);
+
+    Route::get('/ai-cost', [CostController::class, 'index']);
+
+    Route::middleware('admin.super')->group(function () {
+        Route::apiResource('plans', PlanController::class);
+
+        Route::apiResource('templates', TemplateController::class);
+
+        Route::get('/system-logs', [SystemLogController::class, 'index']);
+
+        Route::get('/settings/api-keys', [SettingsController::class, 'apiKeys']);
+        Route::post('/settings/api-keys', [SettingsController::class, 'updateApiKeys']);
+        Route::post('/settings/api-keys/test', [SettingsController::class, 'testApiKey']);
+        Route::post('/settings/api-keys/restore', [SettingsController::class, 'restoreApiKey']);
+    });
+});
