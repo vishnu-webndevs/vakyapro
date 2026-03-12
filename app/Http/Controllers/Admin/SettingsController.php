@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminActivity;
+use App\Models\AppSetting;
 use App\Models\ServiceApiKey;
 use App\Models\ServiceApiKeyBackup;
 use Illuminate\Http\Request;
@@ -117,6 +118,52 @@ class SettingsController extends Controller
         }
 
         return $this->apiKeys($request);
+    }
+
+    public function appSettings(Request $request)
+    {
+        $query = AppSetting::query()->select(['id', 'setting_key', 'setting_value', 'updated_at']);
+
+        if ($request->filled('prefix')) {
+            $query->where('setting_key', 'like', $request->string('prefix').'%');
+        }
+
+        if ($request->has('keys') && is_array($request->input('keys'))) {
+            $keys = array_values(array_filter($request->input('keys'), fn ($key) => is_string($key) && $key !== ''));
+            if (count($keys) > 0) {
+                $query->whereIn('setting_key', $keys);
+            }
+        }
+
+        $settings = $query->orderBy('setting_key')->get();
+
+        return response()->json([
+            'data' => $settings,
+        ]);
+    }
+
+    public function upsertAppSetting(Request $request)
+    {
+        $data = $request->validate([
+            'setting_key' => ['required', 'string', 'max:255'],
+            'setting_value' => ['nullable', 'string'],
+        ]);
+
+        $setting = AppSetting::updateOrCreate(
+            ['setting_key' => $data['setting_key']],
+            ['setting_value' => $data['setting_value'] ?? null],
+        );
+
+        return response()->json([
+            'data' => $setting->only(['id', 'setting_key', 'setting_value', 'updated_at']),
+        ]);
+    }
+
+    public function deleteAppSetting(Request $request, AppSetting $appSetting)
+    {
+        $appSetting->delete();
+
+        return response()->json(['message' => 'Deleted']);
     }
 
     protected function formatKey(?ServiceApiKey $key): array

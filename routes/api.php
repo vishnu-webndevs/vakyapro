@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\AiController as UserAiController;
+use App\Http\Controllers\Api\AppSettingController as UserAppSettingController;
 use App\Http\Controllers\Api\AuthController as UserAuthController;
 use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
 use App\Http\Controllers\Api\PromptController as UserPromptController;
@@ -33,6 +34,8 @@ Route::post('/auth/email/resend', [UserAuthController::class, 'emailResend']);
 
 // Public Data
 Route::get('/plans', [PlanController::class, 'publicIndex']);
+Route::get('/app-settings', [UserAppSettingController::class, 'index']);
+Route::get('/app-settings/{settingKey}', [UserAppSettingController::class, 'show']);
 
 // Protected User Routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -105,5 +108,9 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::post('/settings/api-keys', [SettingsController::class, 'updateApiKeys']);
         Route::post('/settings/api-keys/test', [SettingsController::class, 'testApiKey']);
         Route::post('/settings/api-keys/restore', [SettingsController::class, 'restoreApiKey']);
+
+        Route::get('/settings/app-settings', [SettingsController::class, 'appSettings']);
+        Route::post('/settings/app-settings', [SettingsController::class, 'upsertAppSetting']);
+        Route::delete('/settings/app-settings/{appSetting}', [SettingsController::class, 'deleteAppSetting']);
     });
 });
