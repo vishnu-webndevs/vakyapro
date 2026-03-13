@@ -10,6 +10,8 @@ use App\Models\ServiceApiKeyBackup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -200,6 +202,39 @@ class SettingsController extends Controller
                 'url' => $absoluteUrl,
             ],
         ]);
+    }
+
+    public function testMail(Request $request)
+    {
+        $data = $request->validate([
+            'to' => ['required', 'email', 'max:255'],
+            'subject' => ['nullable', 'string', 'max:255'],
+            'message' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $defaultMailer = (string) config('mail.default', '');
+        if (in_array($defaultMailer, ['log', 'array'], true)) {
+            return response()->json(['message' => 'Email service is not configured (mailer='.$defaultMailer.').'], 503);
+        }
+
+        $to = $data['to'];
+        $subject = $data['subject'] ?: 'VakyaPro Test Email';
+        $body = $data['message'] ?: "This is a test email from VakyaPro.\n\nIf you received this, SMTP is working.";
+
+        try {
+            Mail::raw($body, function ($message) use ($to, $subject) {
+                $message->to($to)->subject($subject);
+            });
+        } catch (Throwable $e) {
+            Log::error('Admin test mail failed', [
+                'to' => $to,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to send test email.'], 503);
+        }
+
+        return response()->json(['message' => 'Test email sent']);
     }
 
     public function deleteAppSetting(Request $request, AppSetting $appSetting)

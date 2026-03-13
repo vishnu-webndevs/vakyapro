@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -147,13 +148,32 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
+        try {
+            DB::beginTransaction();
 
-        $otp = $this->issueEmailOtp($user, $data['email']);
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+            ]);
+
+            $otp = $this->issueEmailOtp($user, $data['email']);
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('Email register OTP send failed', [
+                'email' => $data['email'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            $status = $e instanceof ValidationException ? 422 : 503;
+            $message = $e instanceof ValidationException
+                ? $e->getMessage()
+                : ($e->getMessage() ?: 'Unable to send OTP. Please try again later.');
+
+            return response()->json(['message' => $message], $status);
+        }
 
         $response = [
             'message' => 'OTP sent',
@@ -226,7 +246,24 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid request'], 422);
         }
 
-        $otp = $this->issueEmailOtp($user, $data['email']);
+        try {
+            DB::beginTransaction();
+            $otp = $this->issueEmailOtp($user, $data['email']);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('Email resend OTP send failed', [
+                'email' => $data['email'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            $status = $e instanceof ValidationException ? 422 : 503;
+            $message = $e instanceof ValidationException
+                ? $e->getMessage()
+                : ($e->getMessage() ?: 'Unable to send OTP. Please try again later.');
+
+            return response()->json(['message' => $message], $status);
+        }
 
         $response = [
             'message' => 'OTP resent',
@@ -366,6 +403,11 @@ class AuthController extends Controller
         $code = (string) random_int(100000, 999999);
         $expiresAt = now()->addMinutes(10);
 
+        $defaultMailer = (string) config('mail.default', '');
+        if (! app()->environment('local', 'testing') && in_array($defaultMailer, ['log', 'array'], true)) {
+            throw new \RuntimeException('Email service is not configured.');
+        }
+
         DB::table('email_otp_codes')->insert([
             'user_id' => $user->id,
             'email' => $email,
@@ -376,12 +418,20 @@ class AuthController extends Controller
             'updated_at' => now(),
         ]);
 
-        Mail::raw(
-            "Your VakyaPro OTP is: {$code}\n\nThis OTP expires in 10 minutes.",
-            function ($message) use ($email) {
-                $message->to($email)->subject('VakyaPro Email Verification OTP');
-            }
-        );
+        try {
+            Mail::raw(
+                "Your VakyaPro OTP is: {$code}\n\nThis OTP expires in 10 minutes.",
+                function ($message) use ($email) {
+                    $message->to($email)->subject('VakyaPro Email Verification OTP');
+                }
+            );
+        } catch (Throwable $e) {
+            Log::error('SMTP exception while sending OTP', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Unable to send OTP. Please try again later.');
+        }
 
         return [
             'otp' => $code,
