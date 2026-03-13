@@ -222,8 +222,41 @@ class SettingsController extends Controller
         $body = $data['message'] ?: "This is a test email from VakyaPro.\n\nIf you received this, SMTP is working.";
 
         try {
-            Mail::raw($body, function ($message) use ($to, $subject) {
-                $message->to($to)->subject($subject);
+            $appName = (string) config('app.name', 'VakyaPro');
+            $fromAddress = (string) (config('mail.from.address') ?? '');
+            $fromName = (string) (config('mail.from.name') ?? $appName);
+
+            $safeBodyHtml = nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
+            $htmlBody = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'
+                .htmlspecialchars($subject, ENT_QUOTES, 'UTF-8')
+                .'</title></head><body style="margin:0;background:#0b1220;padding:24px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">'
+                .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:separate;border-spacing:0;">'
+                .'<tr><td style="padding:0 0 12px 0;color:#cbd5e1;font-size:12px;">'
+                .htmlspecialchars($appName, ENT_QUOTES, 'UTF-8')
+                .'</td></tr>'
+                .'<tr><td style="background:#0f172a;border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:24px;">'
+                .'<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin:0 0 6px 0;">Test Email</div>'
+                .'<div style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 18px 0;">SMTP configuration check.</div>'
+                .'<div style="background:#020617;border:1px solid rgba(148,163,184,0.18);border-radius:12px;padding:16px;color:#e2e8f0;font-size:13px;line-height:1.7;">'
+                .$safeBodyHtml
+                .'</div>'
+                .'<hr style="border:none;border-top:1px solid rgba(148,163,184,0.18);margin:18px 0;">'
+                .'<div style="color:#64748b;font-size:11px;line-height:1.6;">'
+                .($fromAddress !== ''
+                    ? ('This email was sent from '.htmlspecialchars($fromAddress, ENT_QUOTES, 'UTF-8').'. ')
+                    : '')
+                .'Please do not reply to this email.</div>'
+                .'</td></tr>'
+                .'</table></body></html>';
+
+            Mail::send([], [], function ($message) use ($to, $subject, $fromAddress, $fromName, $htmlBody, $body) {
+                $message->to($to);
+                if ($fromAddress !== '') {
+                    $message->from($fromAddress, $fromName);
+                }
+                $message->subject($subject)
+                    ->text($body)
+                    ->html($htmlBody);
             });
         } catch (Throwable $e) {
             Log::error('Admin test mail failed', [

@@ -419,12 +419,53 @@ class AuthController extends Controller
         ]);
 
         try {
-            Mail::raw(
-                "Your VakyaPro OTP is: {$code}\n\nThis OTP expires in 10 minutes.",
-                function ($message) use ($email) {
-                    $message->to($email)->subject('VakyaPro Email Verification OTP');
+            $appName = (string) config('app.name', 'VakyaPro');
+            $fromAddress = (string) (config('mail.from.address') ?? '');
+            $fromName = (string) (config('mail.from.name') ?? $appName);
+            $expiresMinutes = 10;
+
+            $subject = "{$appName} Email Verification OTP";
+
+            $textBody = "Your {$appName} OTP is: {$code}\n\nThis OTP expires in {$expiresMinutes} minutes.\n\nIf you did not request this, you can ignore this email.\n\nDo not reply to this email.";
+
+            $htmlBody = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'
+                .htmlspecialchars($subject, ENT_QUOTES, 'UTF-8')
+                .'</title></head><body style="margin:0;background:#0b1220;padding:24px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">'
+                .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:separate;border-spacing:0;">'
+                .'<tr><td style="padding:0 0 12px 0;color:#cbd5e1;font-size:12px;">'
+                .htmlspecialchars($appName, ENT_QUOTES, 'UTF-8')
+                .'</td></tr>'
+                .'<tr><td style="background:#0f172a;border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:24px;">'
+                .'<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin:0 0 6px 0;">Email Verification</div>'
+                .'<div style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 18px 0;">Use the OTP below to verify your email address.</div>'
+                .'<div style="background:#020617;border:1px solid rgba(148,163,184,0.18);border-radius:12px;padding:16px;text-align:center;">'
+                .'<div style="color:#94a3b8;font-size:12px;margin:0 0 6px 0;">One-time password (OTP)</div>'
+                .'<div style="color:#ffffff;font-size:32px;font-weight:800;letter-spacing:6px;margin:0;">'
+                .htmlspecialchars($code, ENT_QUOTES, 'UTF-8')
+                .'</div>'
+                .'</div>'
+                .'<div style="color:#94a3b8;font-size:12px;line-height:1.6;margin:16px 0 0 0;">This OTP expires in '
+                .$expiresMinutes
+                .' minutes.</div>'
+                .'<div style="color:#64748b;font-size:12px;line-height:1.6;margin:12px 0 0 0;">If you did not request this, you can safely ignore this email.</div>'
+                .'<hr style="border:none;border-top:1px solid rgba(148,163,184,0.18);margin:18px 0;">'
+                .'<div style="color:#64748b;font-size:11px;line-height:1.6;">'
+                .($fromAddress !== ''
+                    ? ('This email was sent from '.htmlspecialchars($fromAddress, ENT_QUOTES, 'UTF-8').'. ')
+                    : '')
+                .'Please do not reply to this email.</div>'
+                .'</td></tr>'
+                .'</table></body></html>';
+
+            Mail::send([], [], function ($message) use ($email, $subject, $fromAddress, $fromName, $htmlBody, $textBody) {
+                $message->to($email);
+                if ($fromAddress !== '') {
+                    $message->from($fromAddress, $fromName);
                 }
-            );
+                $message->subject($subject)
+                    ->text($textBody)
+                    ->html($htmlBody);
+            });
         } catch (Throwable $e) {
             Log::error('SMTP exception while sending OTP', [
                 'email' => $email,
