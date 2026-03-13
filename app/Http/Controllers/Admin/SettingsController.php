@@ -9,6 +9,7 @@ use App\Models\ServiceApiKey;
 use App\Models\ServiceApiKeyBackup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -168,6 +169,9 @@ class SettingsController extends Controller
             ['setting_value' => $data['setting_value'] ?? null],
         );
 
+        $currentVersion = (int) Cache::get('app_settings:version', 1);
+        Cache::put('app_settings:version', $currentVersion + 1, now()->addYears(5));
+
         return response()->json([
             'data' => $setting->only(['id', 'setting_key', 'setting_value', 'updated_at']),
         ]);
@@ -277,6 +281,9 @@ class SettingsController extends Controller
         }
 
         $appSetting->delete();
+
+        $currentVersion = (int) Cache::get('app_settings:version', 1);
+        Cache::put('app_settings:version', $currentVersion + 1, now()->addYears(5));
 
         return response()->json(['message' => 'Deleted']);
     }

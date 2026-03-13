@@ -9,9 +9,8 @@ WORKDIR /var/www/html
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libpq-dev libzip-dev unzip \
  && docker-php-ext-install pdo_mysql pdo_pgsql pgsql zip opcache \
- && a2enmod rewrite \
+ && a2enmod rewrite headers expires \
  && rm -rf /var/lib/apt/lists/*
-
 RUN sed -ri 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf \
  && sed -ri 's/AllowOverride\\s+None/AllowOverride All/g' /etc/apache2/apache2.conf
 

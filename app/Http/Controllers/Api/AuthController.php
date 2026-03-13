@@ -127,8 +127,9 @@ class AuthController extends Controller
 
         $payload = $response->json();
 
-        $expectedClientId = env('GOOGLE_CLIENT_ID');
-        if ($expectedClientId && (($payload['aud'] ?? null) !== $expectedClientId)) {
+        $expectedClientIdRaw = (string) env('GOOGLE_CLIENT_ID', '');
+        $expectedClientIds = array_values(array_filter(array_map('trim', explode(',', $expectedClientIdRaw))));
+        if (count($expectedClientIds) > 0 && ! in_array(($payload['aud'] ?? null), $expectedClientIds, true)) {
             return null;
         }
 
