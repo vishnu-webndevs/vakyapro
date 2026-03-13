@@ -5,11 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class AppSettingController extends Controller
 {
     public function index(Request $request)
     {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
         $query = AppSetting::query()->select(['setting_key', 'setting_value']);
 
         if ($request->filled('prefix')) {
@@ -32,6 +39,10 @@ class AppSettingController extends Controller
 
     public function show(string $settingKey)
     {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
         $setting = AppSetting::query()
             ->where('setting_key', $settingKey)
             ->select(['setting_key', 'setting_value'])

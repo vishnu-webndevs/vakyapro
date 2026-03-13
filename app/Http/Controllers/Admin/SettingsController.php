@@ -10,6 +10,7 @@ use App\Models\ServiceApiKeyBackup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -122,6 +123,12 @@ class SettingsController extends Controller
 
     public function appSettings(Request $request)
     {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
         $query = AppSetting::query()->select(['id', 'setting_key', 'setting_value', 'updated_at']);
 
         if ($request->filled('prefix')) {
@@ -144,6 +151,10 @@ class SettingsController extends Controller
 
     public function upsertAppSetting(Request $request)
     {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json(['message' => 'app_settings table is missing. Run migrations.'], 409);
+        }
+
         $data = $request->validate([
             'setting_key' => ['required', 'string', 'max:255'],
             'setting_value' => ['nullable', 'string'],
@@ -161,6 +172,10 @@ class SettingsController extends Controller
 
     public function deleteAppSetting(Request $request, AppSetting $appSetting)
     {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json(['message' => 'app_settings table is missing. Run migrations.'], 409);
+        }
+
         $appSetting->delete();
 
         return response()->json(['message' => 'Deleted']);
