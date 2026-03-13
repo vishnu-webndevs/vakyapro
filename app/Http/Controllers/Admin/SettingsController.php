@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -167,6 +168,37 @@ class SettingsController extends Controller
 
         return response()->json([
             'data' => $setting->only(['id', 'setting_key', 'setting_value', 'updated_at']),
+        ]);
+    }
+
+    public function uploadAppSettingFile(Request $request)
+    {
+        if (! Schema::hasTable('app_settings')) {
+            return response()->json(['message' => 'app_settings table is missing. Run migrations.'], 409);
+        }
+
+        $data = $request->validate([
+            'file' => ['required', 'file', 'image', 'max:5120'],
+            'setting_key' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $file = $request->file('file');
+        $extension = $file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg';
+        $prefix = $data['setting_key'] ? preg_replace('/[^A-Za-z0-9_\-]/', '_', $data['setting_key']) : 'app_setting';
+        $filename = $prefix.'_'.Str::uuid().'.'.$extension;
+
+        $path = $file->storePubliclyAs('app-settings', $filename, 'public');
+        $publicPath = '/storage/'.ltrim($path, '/');
+        $baseUrl = $request->getSchemeAndHttpHost();
+        $absoluteUrl = str_starts_with($publicPath, 'http://') || str_starts_with($publicPath, 'https://')
+            ? $publicPath
+            : rtrim($baseUrl, '/').'/'.ltrim($publicPath, '/');
+
+        return response()->json([
+            'data' => [
+                'path' => $path,
+                'url' => $absoluteUrl,
+            ],
         ]);
     }
 

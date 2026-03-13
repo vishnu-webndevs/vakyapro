@@ -111,6 +111,7 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
 
         Route::get('/settings/app-settings', [SettingsController::class, 'appSettings']);
         Route::post('/settings/app-settings', [SettingsController::class, 'upsertAppSetting']);
+        Route::post('/settings/app-settings/upload', [SettingsController::class, 'uploadAppSettingFile']);
         Route::delete('/settings/app-settings/{appSetting}', [SettingsController::class, 'deleteAppSetting']);
     });
 });
