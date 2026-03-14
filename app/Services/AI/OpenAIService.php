@@ -3,6 +3,7 @@
 namespace App\Services\AI;
 
 use App\Models\ServiceApiKey;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Http;
 
 class OpenAIService implements AIProviderInterface
@@ -310,7 +311,11 @@ class OpenAIService implements AIProviderInterface
             throw new \RuntimeException('OpenAI API key not configured');
         }
 
-        $key = (string) decrypt($record->key_encrypted);
+        try {
+            $key = (string) decrypt($record->key_encrypted);
+        } catch (DecryptException $e) {
+            throw new \RuntimeException('OpenAI API key cannot be decrypted. Please re-save the key.');
+        }
         if ($key === '') {
             throw new \RuntimeException('OpenAI API key not configured');
         }

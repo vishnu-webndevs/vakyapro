@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\AI\OpenAIService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class AiController extends Controller
 {
@@ -26,12 +28,28 @@ class AiController extends Controller
             'temperature' => ['nullable', 'numeric', 'min:0', 'max:2'],
         ]);
 
-        $result = $this->openai->chatCompletion($data['messages'], [
-            'model' => $data['model'] ?? null,
-            'temperature' => $data['temperature'] ?? null,
-        ]);
+        $startedAt = microtime(true);
 
-        return response()->json($result);
+        try {
+            $result = $this->openai->chatCompletion($data['messages'], [
+                'model' => $data['model'] ?? null,
+                'temperature' => $data['temperature'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('AI chat failed', [
+                'user_id' => optional($request->user())->id,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage() ?: 'AI request failed',
+            ], 503);
+        }
+
+        return response()
+            ->json($result)
+            ->header('Cache-Control', 'no-store');
     }
 
     public function chatStream(Request $request)
@@ -44,10 +62,24 @@ class AiController extends Controller
             'temperature' => ['nullable', 'numeric', 'min:0', 'max:2'],
         ]);
 
-        $result = $this->openai->chatCompletion($data['messages'], [
-            'model' => $data['model'] ?? null,
-            'temperature' => $data['temperature'] ?? null,
-        ]);
+        $startedAt = microtime(true);
+
+        try {
+            $result = $this->openai->chatCompletion($data['messages'], [
+                'model' => $data['model'] ?? null,
+                'temperature' => $data['temperature'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('AI chat stream failed', [
+                'user_id' => optional($request->user())->id,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage() ?: 'AI request failed',
+            ], 503);
+        }
 
         $content = (string) ($result['content'] ?? '');
 
@@ -78,10 +110,26 @@ class AiController extends Controller
             'size' => ['nullable', 'string'],
         ]);
 
-        $result = $this->openai->imageGeneration($data['prompt'], [
-            'size' => $data['size'] ?? null,
-        ]);
+        $startedAt = microtime(true);
 
-        return response()->json($result);
+        try {
+            $result = $this->openai->imageGeneration($data['prompt'], [
+                'size' => $data['size'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('AI image failed', [
+                'user_id' => optional($request->user())->id,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage() ?: 'AI request failed',
+            ], 503);
+        }
+
+        return response()
+            ->json($result)
+            ->header('Cache-Control', 'no-store');
     }
 }

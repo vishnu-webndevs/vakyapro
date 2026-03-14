@@ -75,6 +75,11 @@ class AuthController extends Controller
         $payload = $this->verifyGoogleIdToken($request->token);
 
         if (! $payload || empty($payload['email'])) {
+            Log::warning('Google login failed: invalid token payload', [
+                'has_payload' => (bool) $payload,
+                'has_email' => (bool) ($payload['email'] ?? null),
+            ]);
+
             return response()->json(['message' => 'Invalid Google Token'], 401);
         }
 
@@ -113,15 +118,28 @@ class AuthController extends Controller
 
     private function verifyGoogleIdToken(string $token): ?array
     {
+        $tokenFingerprint = substr(hash('sha256', $token), 0, 12);
+
         try {
             $response = Http::timeout(5)->get('https://oauth2.googleapis.com/tokeninfo', [
                 'id_token' => $token,
             ]);
         } catch (Throwable $e) {
+            Log::warning('Google tokeninfo request failed', [
+                'token_fp' => $tokenFingerprint,
+                'error' => $e->getMessage(),
+            ]);
+
             return null;
         }
 
         if (! $response->ok()) {
+            Log::warning('Google tokeninfo rejected id_token', [
+                'token_fp' => $tokenFingerprint,
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 500),
+            ]);
+
             return null;
         }
 
@@ -130,11 +148,22 @@ class AuthController extends Controller
         $expectedClientIdRaw = (string) env('GOOGLE_CLIENT_ID', '');
         $expectedClientIds = array_values(array_filter(array_map('trim', explode(',', $expectedClientIdRaw))));
         if (count($expectedClientIds) > 0 && ! in_array(($payload['aud'] ?? null), $expectedClientIds, true)) {
+            Log::warning('Google token aud mismatch', [
+                'token_fp' => $tokenFingerprint,
+                'aud' => $payload['aud'] ?? null,
+                'expected' => $expectedClientIds,
+            ]);
+
             return null;
         }
 
         $issuer = $payload['iss'] ?? null;
         if ($issuer && ! in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true)) {
+            Log::warning('Google token issuer invalid', [
+                'token_fp' => $tokenFingerprint,
+                'iss' => $issuer,
+            ]);
+
             return null;
         }
 
