@@ -16,6 +16,8 @@ RUN sed -ri 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-availabl
 
 COPY --from=composer_build /app /var/www/html
 
+RUN php artisan storage:link || true
+
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
