@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -323,12 +324,153 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'avatar' => ['sometimes', 'nullable', 'string', 'max:2048'],
+            'avatar' => ['sometimes', 'nullable', 'string'],
         ]);
 
-        $request->user()->update($data);
+        $user = $request->user();
+        if (array_key_exists('name', $data)) {
+            $user->name = $data['name'];
+        }
 
-        return response()->json($request->user());
+        if (array_key_exists('avatar', $data)) {
+            $avatar = $data['avatar'];
+
+            if ($avatar === null || $avatar === '') {
+                $user->avatar = null;
+            } elseif (str_starts_with($avatar, 'data:image/')) {
+                $user->avatar = $this->storeAvatarDataUrl($request, $avatar);
+            } else {
+                $user->avatar = $avatar;
+            }
+        }
+
+        $user->save();
+
+        return response()->json($user);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = $request->user();
+        $currentHash = (string) ($user->password ?? '');
+
+        if ($currentHash === '' || ! Hash::check($data['current_password'], $currentHash)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $user->password = Hash::make($data['password']);
+        $user->save();
+
+        return response()->json(['message' => 'Password changed successfully']);
+    }
+
+    public function passwordForgot(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+        if (! $user) {
+            return response()->json([
+                'message' => 'No account found with this email address.',
+                'errors' => [
+                    'email' => ['No account found with this email address.'],
+                ],
+            ], 422);
+        }
+
+        $defaultMailer = (string) config('mail.default', '');
+        if (! app()->environment('local', 'testing') && in_array($defaultMailer, ['log', 'array'], true)) {
+            return response()->json(['message' => 'Email service is not configured.'], 503);
+        }
+
+        $code = (string) random_int(100000, 999999);
+        $expiresMinutes = 10;
+
+        try {
+            DB::beginTransaction();
+
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $data['email']],
+                ['token' => Hash::make($code), 'created_at' => now()],
+            );
+
+            $this->sendOtpEmail(
+                $data['email'],
+                (string) config('app.name', 'VakyaPro').' Password Reset Code',
+                'Password Reset',
+                'Use the code below to reset your password.',
+                $code,
+                $expiresMinutes,
+            );
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('Forgot password OTP send failed', [
+                'email' => $data['email'],
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Unable to send OTP. Please try again later.'], 503);
+        }
+
+        $response = [
+            'message' => 'OTP sent to your email',
+        ];
+
+        if (app()->environment('local', 'testing')) {
+            $response['otp'] = $code;
+        }
+
+        return response()->json($response);
+    }
+
+    public function passwordReset(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'code' => ['required', 'string', 'min:4', 'max:10'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+        if (! $user) {
+            return response()->json([
+                'message' => 'No account found with this email address.',
+                'errors' => [
+                    'email' => ['No account found with this email address.'],
+                ],
+            ], 422);
+        }
+
+        $row = DB::table('password_reset_tokens')->where('email', $data['email'])->first();
+        $createdAt = $row?->created_at ? \Illuminate\Support\Carbon::parse($row->created_at) : null;
+
+        $valid = $row && $createdAt && $createdAt->gt(now()->subMinutes(10)) && Hash::check($data['code'], (string) $row->token);
+        if (! $valid) {
+            return response()->json([
+                'message' => 'Invalid or expired code.',
+                'errors' => [
+                    'code' => ['Invalid or expired code.'],
+                ],
+            ], 422);
+        }
+
+        $user->password = Hash::make($data['password']);
+        $user->save();
+
+        DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
+
+        return response()->json(['message' => 'Password reset successfully']);
     }
 
     public function requestOtp(Request $request)
@@ -449,53 +591,15 @@ class AuthController extends Controller
         ]);
 
         try {
-            $appName = (string) config('app.name', 'VakyaPro');
-            $fromAddress = (string) (config('mail.from.address') ?? '');
-            $fromName = (string) (config('mail.from.name') ?? $appName);
             $expiresMinutes = 10;
-
-            $subject = "{$appName} Email Verification OTP";
-
-            $textBody = "Your {$appName} OTP is: {$code}\n\nThis OTP expires in {$expiresMinutes} minutes.\n\nIf you did not request this, you can ignore this email.\n\nDo not reply to this email.";
-
-            $htmlBody = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'
-                .htmlspecialchars($subject, ENT_QUOTES, 'UTF-8')
-                .'</title></head><body style="margin:0;background:#0b1220;padding:24px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">'
-                .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:separate;border-spacing:0;">'
-                .'<tr><td style="padding:0 0 12px 0;color:#cbd5e1;font-size:12px;">'
-                .htmlspecialchars($appName, ENT_QUOTES, 'UTF-8')
-                .'</td></tr>'
-                .'<tr><td style="background:#0f172a;border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:24px;">'
-                .'<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin:0 0 6px 0;">Email Verification</div>'
-                .'<div style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 18px 0;">Use the OTP below to verify your email address.</div>'
-                .'<div style="background:#020617;border:1px solid rgba(148,163,184,0.18);border-radius:12px;padding:16px;text-align:center;">'
-                .'<div style="color:#94a3b8;font-size:12px;margin:0 0 6px 0;">One-time password (OTP)</div>'
-                .'<div style="color:#ffffff;font-size:32px;font-weight:800;letter-spacing:6px;margin:0;">'
-                .htmlspecialchars($code, ENT_QUOTES, 'UTF-8')
-                .'</div>'
-                .'</div>'
-                .'<div style="color:#94a3b8;font-size:12px;line-height:1.6;margin:16px 0 0 0;">This OTP expires in '
-                .$expiresMinutes
-                .' minutes.</div>'
-                .'<div style="color:#64748b;font-size:12px;line-height:1.6;margin:12px 0 0 0;">If you did not request this, you can safely ignore this email.</div>'
-                .'<hr style="border:none;border-top:1px solid rgba(148,163,184,0.18);margin:18px 0;">'
-                .'<div style="color:#64748b;font-size:11px;line-height:1.6;">'
-                .($fromAddress !== ''
-                    ? ('This email was sent from '.htmlspecialchars($fromAddress, ENT_QUOTES, 'UTF-8').'. ')
-                    : '')
-                .'Please do not reply to this email.</div>'
-                .'</td></tr>'
-                .'</table></body></html>';
-
-            Mail::send([], [], function ($message) use ($email, $subject, $fromAddress, $fromName, $htmlBody, $textBody) {
-                $message->to($email);
-                if ($fromAddress !== '') {
-                    $message->from($fromAddress, $fromName);
-                }
-                $message->subject($subject)
-                    ->text($textBody)
-                    ->html($htmlBody);
-            });
+            $this->sendOtpEmail(
+                $email,
+                (string) config('app.name', 'VakyaPro').' Email Verification OTP',
+                'Email Verification',
+                'Use the OTP below to verify your email address.',
+                $code,
+                $expiresMinutes,
+            );
         } catch (Throwable $e) {
             Log::error('SMTP exception while sending OTP', [
                 'email' => $email,
@@ -508,5 +612,101 @@ class AuthController extends Controller
             'otp' => $code,
             'expires_at' => $expiresAt->toIso8601String(),
         ];
+    }
+
+    protected function storeAvatarDataUrl(Request $request, string $dataUrl): string
+    {
+        if (! preg_match('/^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/s', $dataUrl, $m)) {
+            throw ValidationException::withMessages([
+                'avatar' => ['Invalid avatar data.'],
+            ]);
+        }
+
+        $mime = $m[1];
+        $b64 = $m[2];
+        $bytes = base64_decode($b64, true);
+        if ($bytes === false) {
+            throw ValidationException::withMessages([
+                'avatar' => ['Invalid avatar data.'],
+            ]);
+        }
+
+        if (strlen($bytes) > 5 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                'avatar' => ['Avatar image is too large.'],
+            ]);
+        }
+
+        $extension = match ($mime) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'jpg',
+        };
+
+        $relativePath = 'avatars/'.Str::uuid().'.'.$extension;
+        Storage::disk('public')->put($relativePath, $bytes);
+
+        $publicPath = '/storage/'.ltrim($relativePath, '/');
+        $baseUrl = $request->getSchemeAndHttpHost();
+
+        return rtrim($baseUrl, '/').'/'.ltrim($publicPath, '/');
+    }
+
+    protected function sendOtpEmail(
+        string $email,
+        string $subject,
+        string $heading,
+        string $subtitle,
+        string $code,
+        int $expiresMinutes,
+    ): void {
+        $appName = (string) config('app.name', 'VakyaPro');
+        $fromAddress = (string) (config('mail.from.address') ?? '');
+        $fromName = (string) (config('mail.from.name') ?? $appName);
+
+        $textBody = "Your {$appName} code is: {$code}\n\nThis code expires in {$expiresMinutes} minutes.\n\nIf you did not request this, you can ignore this email.\n\nDo not reply to this email.";
+
+        $htmlBody = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'
+            .htmlspecialchars($subject, ENT_QUOTES, 'UTF-8')
+            .'</title></head><body style="margin:0;background:#0b1220;padding:24px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">'
+            .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:separate;border-spacing:0;">'
+            .'<tr><td style="padding:0 0 12px 0;color:#cbd5e1;font-size:12px;">'
+            .htmlspecialchars($appName, ENT_QUOTES, 'UTF-8')
+            .'</td></tr>'
+            .'<tr><td style="background:#0f172a;border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:24px;">'
+            .'<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin:0 0 6px 0;">'
+            .htmlspecialchars($heading, ENT_QUOTES, 'UTF-8')
+            .'</div>'
+            .'<div style="color:#94a3b8;font-size:13px;line-height:1.6;margin:0 0 18px 0;">'
+            .htmlspecialchars($subtitle, ENT_QUOTES, 'UTF-8')
+            .'</div>'
+            .'<div style="background:#020617;border:1px solid rgba(148,163,184,0.18);border-radius:12px;padding:16px;text-align:center;">'
+            .'<div style="color:#94a3b8;font-size:12px;margin:0 0 6px 0;">One-time password (OTP)</div>'
+            .'<div style="color:#ffffff;font-size:32px;font-weight:800;letter-spacing:6px;margin:0;">'
+            .htmlspecialchars($code, ENT_QUOTES, 'UTF-8')
+            .'</div>'
+            .'</div>'
+            .'<div style="color:#94a3b8;font-size:12px;line-height:1.6;margin:16px 0 0 0;">This code expires in '
+            .$expiresMinutes
+            .' minutes.</div>'
+            .'<div style="color:#64748b;font-size:12px;line-height:1.6;margin:12px 0 0 0;">If you did not request this, you can safely ignore this email.</div>'
+            .'<hr style="border:none;border-top:1px solid rgba(148,163,184,0.18);margin:18px 0;">'
+            .'<div style="color:#64748b;font-size:11px;line-height:1.6;">'
+            .($fromAddress !== ''
+                ? ('This email was sent from '.htmlspecialchars($fromAddress, ENT_QUOTES, 'UTF-8').'. ')
+                : '')
+            .'Please do not reply to this email.</div>'
+            .'</td></tr>'
+            .'</table></body></html>';
+
+        Mail::send([], [], function ($message) use ($email, $subject, $fromAddress, $fromName, $htmlBody, $textBody) {
+            $message->to($email);
+            if ($fromAddress !== '') {
+                $message->from($fromAddress, $fromName);
+            }
+            $message->subject($subject)
+                ->text($textBody)
+                ->html($htmlBody);
+        });
     }
 }

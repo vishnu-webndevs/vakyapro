@@ -31,6 +31,8 @@ Route::post('/auth/google', [UserAuthController::class, 'googleLogin']);
 Route::post('/auth/email/register', [UserAuthController::class, 'emailRegister']);
 Route::post('/auth/email/verify', [UserAuthController::class, 'emailVerify']);
 Route::post('/auth/email/resend', [UserAuthController::class, 'emailResend']);
+Route::post('/auth/password/forgot', [UserAuthController::class, 'passwordForgot']);
+Route::post('/auth/password/reset', [UserAuthController::class, 'passwordReset']);
 
 // Public Data
 Route::get('/plans', [PlanController::class, 'publicIndex']);
@@ -42,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [UserAuthController::class, 'logout']);
     Route::get('/auth/me', [UserAuthController::class, 'me']);
     Route::put('/profile', [UserAuthController::class, 'updateProfile']);
+    Route::put('/profile/password', [UserAuthController::class, 'changePassword']);
     if (env('FEATURE_PHONE_OTP', false)) {
         Route::post('/auth/otp/request', [UserAuthController::class, 'requestOtp']);
         Route::post('/auth/otp/verify', [UserAuthController::class, 'verifyOtp']);
