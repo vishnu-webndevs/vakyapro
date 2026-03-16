@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\CostController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\PrePromptController;
 use App\Http\Controllers\Admin\PromptController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SystemLogController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Api\AiController as UserAiController;
 use App\Http\Controllers\Api\AppSettingController as UserAppSettingController;
 use App\Http\Controllers\Api\AuthController as UserAuthController;
 use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
+use App\Http\Controllers\Api\PrePromptController as UserPrePromptController;
 use App\Http\Controllers\Api\PromptController as UserPromptController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +68,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/chat', [UserAiController::class, 'chat']);
     Route::post('/ai/chat/stream', [UserAiController::class, 'chatStream']);
     Route::post('/ai/image', [UserAiController::class, 'image']);
+
+    Route::get('/pre-prompts', [UserPrePromptController::class, 'index']);
 });
 
 /*
@@ -104,6 +108,7 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::apiResource('plans', PlanController::class);
 
         Route::apiResource('templates', TemplateController::class);
+        Route::apiResource('pre-prompts', PrePromptController::class)->parameters(['pre-prompts' => 'prePrompt']);
 
         Route::get('/system-logs', [SystemLogController::class, 'index']);
 
