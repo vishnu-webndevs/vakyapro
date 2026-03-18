@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureUserNotBlocked;
+use App\Http\Middleware\EnsureCorsOnApiErrors;
 use App\Http\Middleware\LogSlowRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(HandleCors::class);
         $middleware->append(LogSlowRequests::class);
+        $middleware->append(EnsureCorsOnApiErrors::class);
         $middleware->alias([
             'admin.super' => EnsureSuperAdmin::class,
             'user.active' => EnsureUserNotBlocked::class,
