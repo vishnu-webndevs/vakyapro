@@ -15,11 +15,14 @@ class LearnVideo extends Model
         'duration',
         'sort_order',
         'is_active',
+        'views_count',
+        'watch_time_ms',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
         'is_active' => 'boolean',
+        'views_count' => 'integer',
+        'watch_time_ms' => 'integer',
     ];
 }
-

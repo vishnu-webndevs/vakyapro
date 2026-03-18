@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PrePrompt;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class PrePromptController extends Controller
 {
@@ -56,6 +57,8 @@ class PrePromptController extends Controller
             'variants' => array_values($data['variants']),
         ]);
 
+        Cache::forever('pre_prompts:version', (int) Cache::get('pre_prompts:version', 1) + 1);
+
         return response()->json([
             'data' => $item,
         ], 201);
@@ -98,6 +101,8 @@ class PrePromptController extends Controller
 
         $prePrompt->save();
 
+        Cache::forever('pre_prompts:version', (int) Cache::get('pre_prompts:version', 1) + 1);
+
         return response()->json([
             'data' => $prePrompt,
         ]);
@@ -107,7 +112,8 @@ class PrePromptController extends Controller
     {
         $prePrompt->delete();
 
+        Cache::forever('pre_prompts:version', (int) Cache::get('pre_prompts:version', 1) + 1);
+
         return response()->json(['message' => 'Deleted']);
     }
 }
-

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Reel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ReelController extends Controller
@@ -12,67 +13,70 @@ class ReelController extends Controller
     public function index(Request $request)
     {
         $userId = (int) $request->user()->id;
+        $savedOnly = $request->boolean('saved_only');
+        $version = (int) Cache::get('reels:version', 1);
+        $cacheKey = 'reels:index:'.$version.':user:'.$userId.':saved_only:'.($savedOnly ? '1' : '0');
 
-        $query = Reel::query()
-            ->where('is_active', true)
-            ->orderBy('order')
-            ->orderByDesc('created_at')
-            ->select([
-                'id',
-                'title',
-                'description',
-                'prompt',
-                'video_url',
-                'thumbnail_url',
-                'views_count',
-                'likes_count',
-                'saves_count',
-                'shares_count',
-                'comments_count',
-                'created_at',
-            ])
-            ->addSelect([
-                'is_liked' => DB::raw('EXISTS (select 1 from reel_likes where reel_likes.reel_id = reels.id and reel_likes.user_id = '.(int) $userId.')'),
-                'is_saved' => DB::raw('EXISTS (select 1 from reel_saves where reel_saves.reel_id = reels.id and reel_saves.user_id = '.(int) $userId.')'),
-            ])
-            ->addSelect([
-                'is_shared' => DB::raw('EXISTS (select 1 from reel_shares where reel_shares.reel_id = reels.id and reel_shares.user_id = '.(int) $userId.')'),
-            ]);
+        $data = Cache::remember($cacheKey, now()->addSeconds(10), function () use ($savedOnly, $userId) {
+            $query = Reel::query()
+                ->where('is_active', true)
+                ->orderBy('order')
+                ->orderByDesc('created_at')
+                ->select([
+                    'id',
+                    'title',
+                    'description',
+                    'prompt',
+                    'video_url',
+                    'thumbnail_url',
+                    'views_count',
+                    'likes_count',
+                    'saves_count',
+                    'shares_count',
+                    'comments_count',
+                    'created_at',
+                ])
+                ->addSelect([
+                    'is_liked' => DB::raw('EXISTS (select 1 from reel_likes where reel_likes.reel_id = reels.id and reel_likes.user_id = '.(int) $userId.')'),
+                    'is_saved' => DB::raw('EXISTS (select 1 from reel_saves where reel_saves.reel_id = reels.id and reel_saves.user_id = '.(int) $userId.')'),
+                    'is_shared' => DB::raw('EXISTS (select 1 from reel_shares where reel_shares.reel_id = reels.id and reel_shares.user_id = '.(int) $userId.')'),
+                ]);
 
-        if ($request->boolean('saved_only')) {
-            $query->whereExists(function ($q) use ($userId) {
-                $q->select(DB::raw(1))
-                    ->from('reel_saves')
-                    ->whereColumn('reel_saves.reel_id', 'reels.id')
-                    ->where('reel_saves.user_id', $userId);
-            });
-        }
+            if ($savedOnly) {
+                $query->whereExists(function ($q) use ($userId) {
+                    $q->select(DB::raw(1))
+                        ->from('reel_saves')
+                        ->whereColumn('reel_saves.reel_id', 'reels.id')
+                        ->where('reel_saves.user_id', $userId);
+                });
+            }
 
-        $reels = $query->get();
+            $reels = $query->get();
 
-        $data = $reels->map(function ($reel) {
-            return [
-                'id' => $reel->id,
-                'title' => $reel->title,
-                'description' => $reel->description,
-                'prompt' => $reel->prompt,
-                'video_url' => $reel->video_url,
-                'thumbnail_url' => $reel->thumbnail_url,
-                'views_count' => (int) $reel->views_count,
-                'likes_count' => (int) $reel->likes_count,
-                'saves_count' => (int) $reel->saves_count,
-                'shares_count' => (int) ($reel->shares_count ?? 0),
-                'comments_count' => (int) $reel->comments_count,
-                'is_liked' => (bool) $reel->is_liked,
-                'is_saved' => (bool) $reel->is_saved,
-                'is_shared' => (bool) ($reel->is_shared ?? false),
-                'created_at' => $reel->created_at?->toIso8601String(),
-            ];
+            return $reels->map(function ($reel) {
+                return [
+                    'id' => $reel->id,
+                    'title' => $reel->title,
+                    'description' => $reel->description,
+                    'prompt' => $reel->prompt,
+                    'video_url' => $reel->video_url,
+                    'thumbnail_url' => $reel->thumbnail_url,
+                    'views_count' => (int) $reel->views_count,
+                    'likes_count' => (int) $reel->likes_count,
+                    'saves_count' => (int) $reel->saves_count,
+                    'shares_count' => (int) ($reel->shares_count ?? 0),
+                    'comments_count' => (int) $reel->comments_count,
+                    'is_liked' => (bool) $reel->is_liked,
+                    'is_saved' => (bool) $reel->is_saved,
+                    'is_shared' => (bool) ($reel->is_shared ?? false),
+                    'created_at' => $reel->created_at?->toIso8601String(),
+                ];
+            })->values();
         });
 
-        return response()->json([
-            'data' => $data,
-        ]);
+        return response()
+            ->json(['data' => $data])
+            ->header('Cache-Control', 'private, max-age=10');
     }
 
     public function toggleLike(Request $request, Reel $reel)
@@ -190,6 +194,48 @@ class ReelController extends Controller
         return response()->json([
             'shared' => true,
             'shares_count' => $result,
+        ]);
+    }
+
+    public function view(Request $request, Reel $reel)
+    {
+        $data = $request->validate([
+            'watch_duration_ms' => ['nullable', 'integer', 'min:0', 'max:86400000'],
+            'is_completed' => ['nullable', 'boolean'],
+        ]);
+
+        $userId = (int) $request->user()->id;
+        $watchMs = (int) ($data['watch_duration_ms'] ?? 0);
+        $isCompleted = (bool) ($data['is_completed'] ?? false);
+
+        $result = DB::transaction(function () use ($reel, $userId, $watchMs, $isCompleted) {
+            DB::table('reel_view_events')->insert([
+                'reel_id' => $reel->id,
+                'user_id' => $userId,
+                'watch_duration_ms' => $watchMs,
+                'is_completed' => $isCompleted,
+                'created_at' => now(),
+            ]);
+
+            $updates = [
+                'watch_time_ms' => DB::raw('watch_time_ms + '.(int) $watchMs),
+            ];
+
+            if ($watchMs >= 3000) {
+                $updates['views_count'] = DB::raw('views_count + 1');
+            }
+
+            DB::table('reels')->where('id', $reel->id)->update($updates);
+
+            return [
+                'views_count' => (int) DB::table('reels')->where('id', $reel->id)->value('views_count'),
+                'watch_time_ms' => (int) DB::table('reels')->where('id', $reel->id)->value('watch_time_ms'),
+            ];
+        });
+
+        return response()->json([
+            'views_count' => $result['views_count'],
+            'watch_time_ms' => $result['watch_time_ms'],
         ]);
     }
 }

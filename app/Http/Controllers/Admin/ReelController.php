@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Reel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class ReelController extends Controller
@@ -74,6 +75,8 @@ class ReelController extends Controller
             $reel = $this->storeReelVideoFile($request, $reel, $request->file('video_file'));
         }
 
+        Cache::forever('reels:version', (int) Cache::get('reels:version', 1) + 1);
+
         return response()->json([
             'data' => $reel,
         ], 201);
@@ -112,6 +115,8 @@ class ReelController extends Controller
             $reel = $this->storeReelVideoFile($request, $reel, $request->file('video_file'));
         }
 
+        Cache::forever('reels:version', (int) Cache::get('reels:version', 1) + 1);
+
         return response()->json([
             'data' => $reel,
         ]);
@@ -121,6 +126,8 @@ class ReelController extends Controller
     {
         $reel->is_active = false;
         $reel->save();
+
+        Cache::forever('reels:version', (int) Cache::get('reels:version', 1) + 1);
 
         return response()->json(['message' => 'Deleted']);
     }
@@ -139,4 +146,3 @@ class ReelController extends Controller
         return $reel;
     }
 }
-

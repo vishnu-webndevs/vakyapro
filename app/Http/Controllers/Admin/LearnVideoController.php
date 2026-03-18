@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\LearnVideo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class LearnVideoController extends Controller
 {
@@ -59,6 +60,8 @@ class LearnVideoController extends Controller
             'is_active' => (bool) ($data['is_active'] ?? true),
         ]);
 
+        Cache::forever('learn_videos:version', (int) Cache::get('learn_videos:version', 1) + 1);
+
         return response()->json(['data' => $item], 201);
     }
 
@@ -96,6 +99,8 @@ class LearnVideoController extends Controller
 
         $learnVideo->save();
 
+        Cache::forever('learn_videos:version', (int) Cache::get('learn_videos:version', 1) + 1);
+
         return response()->json(['data' => $learnVideo]);
     }
 
@@ -104,7 +109,8 @@ class LearnVideoController extends Controller
         $learnVideo->is_active = false;
         $learnVideo->save();
 
+        Cache::forever('learn_videos:version', (int) Cache::get('learn_videos:version', 1) + 1);
+
         return response()->json(['message' => 'Deleted']);
     }
 }
-
