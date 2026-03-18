@@ -57,6 +57,10 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->is_blocked ?? false) {
+            return response()->json(['message' => 'Your account is blocked.'], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -95,6 +99,10 @@ class AuthController extends Controller
                 'avatar' => $payload['picture'] ?? null,
             ]);
         } else {
+            if ($user->is_blocked ?? false) {
+                return response()->json(['message' => 'Your account is blocked.'], 403);
+            }
+
             $user->update([
                 'google_id' => $payload['sub'] ?? $user->google_id,
                 'avatar' => $payload['picture'] ?? $user->avatar,

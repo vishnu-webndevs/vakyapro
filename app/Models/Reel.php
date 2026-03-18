@@ -21,6 +21,7 @@ class Reel extends Model
         'views_count',
         'likes_count',
         'saves_count',
+        'shares_count',
         'comments_count',
     ];
 
@@ -30,6 +31,7 @@ class Reel extends Model
         'views_count' => 'integer',
         'likes_count' => 'integer',
         'saves_count' => 'integer',
+        'shares_count' => 'integer',
         'comments_count' => 'integer',
     ];
 

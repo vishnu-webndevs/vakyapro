@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureSuperAdmin;
+use App\Http\Middleware\EnsureUserNotBlocked;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(HandleCors::class);
         $middleware->alias([
             'admin.super' => EnsureSuperAdmin::class,
+            'user.active' => EnsureUserNotBlocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

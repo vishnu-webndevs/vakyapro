@@ -23,7 +23,38 @@ class UserController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        // TODO: Implement block/unblock logic
+        $data = $request->validate([
+            'is_blocked' => ['required', 'boolean'],
+            'blocked_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $user = User::with('plan')->findOrFail($id);
+        $wasBlocked = (bool) ($user->is_blocked ?? false);
+
+        $user->is_blocked = (bool) $data['is_blocked'];
+        $user->blocked_reason = $data['is_blocked'] ? ($data['blocked_reason'] ?? null) : null;
+        $user->blocked_at = $data['is_blocked'] ? now() : null;
+        $user->save();
+
+        if ($data['is_blocked'] && ! $wasBlocked) {
+            $user->tokens()->delete();
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            AdminActivity::create([
+                'admin_id' => $admin->id,
+                'action' => $data['is_blocked'] ? 'user_blocked' : 'user_unblocked',
+                'resource_type' => User::class,
+                'resource_id' => $user->id,
+                'meta' => [
+                    'user_email' => $user->email,
+                    'blocked_reason' => $user->blocked_reason,
+                ],
+            ]);
+        }
+
+        return response()->json($user);
     }
 
     public function updatePlan(Request $request, $id)

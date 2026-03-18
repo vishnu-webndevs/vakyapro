@@ -13,7 +13,7 @@ class ReelController extends Controller
     {
         $userId = (int) $request->user()->id;
 
-        $reels = Reel::query()
+        $query = Reel::query()
             ->where('is_active', true)
             ->orderBy('order')
             ->orderByDesc('created_at')
@@ -27,6 +27,7 @@ class ReelController extends Controller
                 'views_count',
                 'likes_count',
                 'saves_count',
+                'shares_count',
                 'comments_count',
                 'created_at',
             ])
@@ -34,7 +35,20 @@ class ReelController extends Controller
                 'is_liked' => DB::raw('EXISTS (select 1 from reel_likes where reel_likes.reel_id = reels.id and reel_likes.user_id = '.(int) $userId.')'),
                 'is_saved' => DB::raw('EXISTS (select 1 from reel_saves where reel_saves.reel_id = reels.id and reel_saves.user_id = '.(int) $userId.')'),
             ])
-            ->get();
+            ->addSelect([
+                'is_shared' => DB::raw('EXISTS (select 1 from reel_shares where reel_shares.reel_id = reels.id and reel_shares.user_id = '.(int) $userId.')'),
+            ]);
+
+        if ($request->boolean('saved_only')) {
+            $query->whereExists(function ($q) use ($userId) {
+                $q->select(DB::raw(1))
+                    ->from('reel_saves')
+                    ->whereColumn('reel_saves.reel_id', 'reels.id')
+                    ->where('reel_saves.user_id', $userId);
+            });
+        }
+
+        $reels = $query->get();
 
         $data = $reels->map(function ($reel) {
             return [
@@ -47,9 +61,11 @@ class ReelController extends Controller
                 'views_count' => (int) $reel->views_count,
                 'likes_count' => (int) $reel->likes_count,
                 'saves_count' => (int) $reel->saves_count,
+                'shares_count' => (int) ($reel->shares_count ?? 0),
                 'comments_count' => (int) $reel->comments_count,
                 'is_liked' => (bool) $reel->is_liked,
                 'is_saved' => (bool) $reel->is_saved,
+                'is_shared' => (bool) ($reel->is_shared ?? false),
                 'created_at' => $reel->created_at?->toIso8601String(),
             ];
         });
@@ -150,5 +166,30 @@ class ReelController extends Controller
             'saves_count' => $result[1],
         ]);
     }
-}
 
+    public function share(Request $request, Reel $reel)
+    {
+        $userId = (int) $request->user()->id;
+
+        $result = DB::transaction(function () use ($reel, $userId) {
+            DB::table('reel_shares')->insert([
+                'reel_id' => $reel->id,
+                'user_id' => $userId,
+                'created_at' => now(),
+            ]);
+
+            DB::table('reels')
+                ->where('id', $reel->id)
+                ->update(['shares_count' => DB::raw('shares_count + 1')]);
+
+            $sharesCount = (int) DB::table('reels')->where('id', $reel->id)->value('shares_count');
+
+            return $sharesCount;
+        });
+
+        return response()->json([
+            'shared' => true,
+            'shares_count' => $result,
+        ]);
+    }
+}

@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PrePromptController;
 use App\Http\Controllers\Admin\PromptController;
 use App\Http\Controllers\Admin\ReelController as AdminReelController;
+use App\Http\Controllers\Admin\ReelModerationController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\TemplateController;
@@ -47,7 +48,7 @@ Route::get('/app-settings', [UserAppSettingController::class, 'index']);
 Route::get('/app-settings/{settingKey}', [UserAppSettingController::class, 'show']);
 
 // Protected User Routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'user.active'])->group(function () {
     Route::post('/auth/logout', [UserAuthController::class, 'logout']);
     Route::get('/auth/me', [UserAuthController::class, 'me']);
     Route::put('/profile', [UserAuthController::class, 'updateProfile']);
@@ -80,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reels', [UserReelController::class, 'index']);
     Route::post('/reels/{reel}/like', [UserReelController::class, 'toggleLike']);
     Route::post('/reels/{reel}/save', [UserReelController::class, 'toggleSave']);
+    Route::post('/reels/{reel}/share', [UserReelController::class, 'share']);
     Route::get('/reels/{reel}/comments', [UserReelCommentController::class, 'index']);
     Route::post('/reels/{reel}/comments', [UserReelCommentController::class, 'store']);
 });
@@ -123,6 +125,12 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::apiResource('pre-prompts', PrePromptController::class)->parameters(['pre-prompts' => 'prePrompt']);
         Route::apiResource('learn', LearnVideoController::class)->parameters(['learn' => 'learnVideo']);
         Route::apiResource('reels', AdminReelController::class)->parameters(['reels' => 'reel']);
+        Route::get('/reels/{reel}/comments', [ReelModerationController::class, 'comments']);
+        Route::put('/reel-comments/{id}/visibility', [ReelModerationController::class, 'setCommentVisibility']);
+        Route::delete('/reel-comments/{id}', [ReelModerationController::class, 'deleteComment']);
+        Route::get('/reels/{reel}/likes', [ReelModerationController::class, 'likes']);
+        Route::get('/reels/{reel}/saves', [ReelModerationController::class, 'saves']);
+        Route::get('/reels/{reel}/shares', [ReelModerationController::class, 'shares']);
 
         Route::get('/system-logs', [SystemLogController::class, 'index']);
 
