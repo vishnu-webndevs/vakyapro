@@ -38,4 +38,11 @@
     <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
+
+    SetEnvIfNoCase Origin "^https?://(www\.)?vakyapro\.com$" ACAO=$0
+    Header always set Access-Control-Allow-Origin %{ACAO}e env=ACAO
+    Header always set Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    Header always set Access-Control-Allow-Headers "Authorization,Content-Type,Accept,Origin,X-Requested-With"
+    Header always set Access-Control-Max-Age "86400"
+    Header always set Vary "Origin"
 </IfModule>
