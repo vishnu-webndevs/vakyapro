@@ -7,6 +7,7 @@ use App\Models\Reel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ReelController extends Controller
 {
@@ -14,10 +15,7 @@ class ReelController extends Controller
     {
         $userId = (int) $request->user()->id;
         $savedOnly = $request->boolean('saved_only');
-        $version = (int) Cache::get('reels:version', 1);
-        $cacheKey = 'reels:index:'.$version.':user:'.$userId.':saved_only:'.($savedOnly ? '1' : '0');
-
-        $data = Cache::remember($cacheKey, now()->addSeconds(10), function () use ($savedOnly, $userId) {
+        $compute = function () use ($savedOnly, $userId) {
             $query = Reel::query()
                 ->where('is_active', true)
                 ->orderBy('order')
@@ -72,7 +70,15 @@ class ReelController extends Controller
                     'created_at' => $reel->created_at?->toIso8601String(),
                 ];
             })->values();
-        });
+        };
+
+        try {
+            $version = (int) Cache::get('reels:version', 1);
+            $cacheKey = 'reels:index:'.$version.':user:'.$userId.':saved_only:'.($savedOnly ? '1' : '0');
+            $data = Cache::remember($cacheKey, now()->addSeconds(10), $compute);
+        } catch (Throwable) {
+            $data = $compute();
+        }
 
         return response()
             ->json(['data' => $data])

@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class AppSettingController extends Controller
 {
@@ -25,13 +26,7 @@ class AppSettingController extends Controller
             sort($keys);
         }
 
-        $version = (int) Cache::get('app_settings:version', 1);
-        $cacheKey = 'app_settings:index:'.$version.':'.sha1(json_encode([
-            'prefix' => $prefix,
-            'keys' => $keys,
-        ]));
-
-        $settings = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($prefix, $keys) {
+        $compute = function () use ($prefix, $keys) {
             $query = AppSetting::query()->select(['setting_key', 'setting_value']);
 
             if ($prefix !== null && $prefix !== '') {
@@ -43,7 +38,19 @@ class AppSettingController extends Controller
             }
 
             return $query->orderBy('setting_key')->get();
-        });
+        };
+
+        try {
+            $version = (int) Cache::get('app_settings:version', 1);
+            $cacheKey = 'app_settings:index:'.$version.':'.sha1(json_encode([
+                'prefix' => $prefix,
+                'keys' => $keys,
+            ]));
+
+            $settings = Cache::remember($cacheKey, now()->addSeconds(60), $compute);
+        } catch (Throwable) {
+            $settings = $compute();
+        }
 
         return response()->json([
             'data' => $settings,
@@ -56,15 +63,21 @@ class AppSettingController extends Controller
             return response()->json(['message' => 'Not Found'], 404);
         }
 
-        $version = (int) Cache::get('app_settings:version', 1);
-        $cacheKey = 'app_settings:show:'.$version.':'.$settingKey;
-
-        $setting = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($settingKey) {
+        $compute = function () use ($settingKey) {
             return AppSetting::query()
                 ->where('setting_key', $settingKey)
                 ->select(['setting_key', 'setting_value'])
                 ->first();
-        });
+        };
+
+        try {
+            $version = (int) Cache::get('app_settings:version', 1);
+            $cacheKey = 'app_settings:show:'.$version.':'.$settingKey;
+
+            $setting = Cache::remember($cacheKey, now()->addSeconds(60), $compute);
+        } catch (Throwable) {
+            $setting = $compute();
+        }
 
         if (! $setting) {
             return response()->json(['message' => 'Not Found'], 404);
