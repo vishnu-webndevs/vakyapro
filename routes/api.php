@@ -5,19 +5,24 @@ use App\Http\Controllers\Admin\ChatAnalyticsController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\CostController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\LearnVideoController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PrePromptController;
 use App\Http\Controllers\Admin\PromptController;
+use App\Http\Controllers\Admin\ReelController as AdminReelController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Api\LearnController as UserLearnController;
 use App\Http\Controllers\Api\AiController as UserAiController;
 use App\Http\Controllers\Api\AppSettingController as UserAppSettingController;
 use App\Http\Controllers\Api\AuthController as UserAuthController;
 use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
 use App\Http\Controllers\Api\PrePromptController as UserPrePromptController;
 use App\Http\Controllers\Api\PromptController as UserPromptController;
+use App\Http\Controllers\Api\ReelCommentController as UserReelCommentController;
+use App\Http\Controllers\Api\ReelController as UserReelController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,6 +75,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/image', [UserAiController::class, 'image']);
 
     Route::get('/pre-prompts', [UserPrePromptController::class, 'index']);
+    Route::get('/learn', [UserLearnController::class, 'index']);
+
+    Route::get('/reels', [UserReelController::class, 'index']);
+    Route::post('/reels/{reel}/like', [UserReelController::class, 'toggleLike']);
+    Route::post('/reels/{reel}/save', [UserReelController::class, 'toggleSave']);
+    Route::get('/reels/{reel}/comments', [UserReelCommentController::class, 'index']);
+    Route::post('/reels/{reel}/comments', [UserReelCommentController::class, 'store']);
 });
 
 /*
@@ -109,6 +121,8 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
 
         Route::apiResource('templates', TemplateController::class);
         Route::apiResource('pre-prompts', PrePromptController::class)->parameters(['pre-prompts' => 'prePrompt']);
+        Route::apiResource('learn', LearnVideoController::class)->parameters(['learn' => 'learnVideo']);
+        Route::apiResource('reels', AdminReelController::class)->parameters(['reels' => 'reel']);
 
         Route::get('/system-logs', [SystemLogController::class, 'index']);
 
