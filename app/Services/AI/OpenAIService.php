@@ -28,11 +28,15 @@ class OpenAIService implements AIProviderInterface
             $history = [];
         }
 
+        $text = mb_strtolower($prompt);
+
+        if ($this->isRegenerateCommand($text) && $this->hasMeaningfulUserHistory($history)) {
+            return $this->generateFinalPrompt('', $history);
+        }
+
         if ($questionCount >= $maxQuestions) {
             return $this->generateFinalPrompt($prompt, $history);
         }
-
-        $text = mb_strtolower($prompt);
 
         if (str_contains($text, 'logo')) {
             return $this->logoQuestion($questionCount);
@@ -121,7 +125,9 @@ class OpenAIService implements AIProviderInterface
     {
         $userMessages = array_values(array_filter(
             $history,
-            fn ($m) => ($m['role'] ?? null) === 'user' && is_string($m['content'] ?? null),
+            fn ($m) => ($m['role'] ?? null) === 'user'
+                && is_string($m['content'] ?? null)
+                && ! $this->isRegenerateCommand(mb_strtolower(trim((string) $m['content']))),
         ));
 
         if (empty($userMessages)) {
@@ -156,6 +162,55 @@ class OpenAIService implements AIProviderInterface
     protected function wrapFinalPrompt(string $prompt): string
     {
         return "Here is your prompt\n\n".$prompt;
+    }
+
+    protected function isRegenerateCommand(string $text): bool
+    {
+        $t = trim($text);
+        if ($t === '') {
+            return false;
+        }
+
+        if (str_contains($t, 'regenerate')) {
+            return true;
+        }
+
+        if (str_contains($t, 're-generate')) {
+            return true;
+        }
+
+        if (str_contains($t, 'phir se') || str_contains($t, 'fir se') || str_contains($t, 'dubara')) {
+            return true;
+        }
+
+        if (str_contains($t, 'prompt regenerate')) {
+            return true;
+        }
+
+        if (str_contains($t, 'prompt') && (str_contains($t, 'again') || str_contains($t, 'once more'))) {
+            return true;
+        }
+
+        return $t === 'again' || $t === 'once more';
+    }
+
+    protected function hasMeaningfulUserHistory(array $history): bool
+    {
+        foreach ($history as $m) {
+            if (($m['role'] ?? null) !== 'user') {
+                continue;
+            }
+            $content = trim((string) ($m['content'] ?? ''));
+            if ($content === '') {
+                continue;
+            }
+            if ($this->isRegenerateCommand(mb_strtolower($content))) {
+                continue;
+            }
+            return true;
+        }
+
+        return false;
     }
 
     protected function looksLikeImageRequest(string $text): bool
