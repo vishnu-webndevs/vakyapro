@@ -73,7 +73,6 @@ Route::middleware(['auth:sanctum', 'user.active'])->group(function () {
     // AI
     Route::post('/ai/chat', [UserAiController::class, 'chat']);
     Route::post('/ai/chat/stream', [UserAiController::class, 'chatStream']);
-    Route::post('/ai/image', [UserAiController::class, 'image']);
 
     Route::get('/pre-prompts', [UserPrePromptController::class, 'index']);
     Route::get('/learn', [UserLearnController::class, 'index']);

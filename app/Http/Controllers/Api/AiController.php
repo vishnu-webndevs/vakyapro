@@ -105,6 +105,10 @@ class AiController extends Controller
 
     public function image(Request $request)
     {
+        if (! (bool) env('AI_IMAGE_ENABLED', false)) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
         $data = $request->validate([
             'prompt' => ['required', 'string', 'max:4000'],
             'size' => ['nullable', 'string'],
