@@ -23,6 +23,23 @@ class SettingsController extends Controller
 {
     public function apiKeys(Request $request)
     {
+        if (! Schema::hasTable('service_api_keys')) {
+            return response()->json([
+                'openai' => [
+                    'has_key' => false,
+                    'last_four' => null,
+                    'updated_at' => null,
+                    'has_backup' => false,
+                ],
+                'gemini' => [
+                    'has_key' => false,
+                    'last_four' => null,
+                    'updated_at' => null,
+                    'has_backup' => false,
+                ],
+            ]);
+        }
+
         $openai = ServiceApiKey::where('provider', 'openai')->first();
         $gemini = ServiceApiKey::where('provider', 'gemini')->first();
 
