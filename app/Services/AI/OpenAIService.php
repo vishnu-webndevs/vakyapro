@@ -38,6 +38,10 @@ class OpenAIService implements AIProviderInterface
             return $this->logoQuestion($questionCount);
         }
 
+        if ($this->looksLikeImageRequest($text)) {
+            return $this->imageQuestion($questionCount);
+        }
+
         if ($this->looksLikeNamingRequest($text)) {
             return $this->namingQuestion($questionCount);
         }
@@ -56,10 +60,20 @@ class OpenAIService implements AIProviderInterface
     protected function logoQuestion(int $count): string
     {
         return match ($count) {
-            0 => 'Theek hai. Aapki site/brand ka name kya hai?',
+            0 => 'Theek hai. Aapko kis brand/product ke liye logo prompt chahiye?',
             1 => 'Audience kaun hai? (kids/teens/business/local etc)',
             2 => 'Style kaisa chahiye? (minimal/bold/premium/playful)',
             default => 'Colors pasand? 2–3 colors ya “no preference”',
+        };
+    }
+
+    protected function imageQuestion(int $count): string
+    {
+        return match ($count) {
+            0 => 'Theek hai. Aapko image kis purpose ke liye chahiye? (logo/poster/ad/thumbnail/product)',
+            1 => 'Image me main subject kya ho aur context kya ho? (1 line)',
+            2 => 'Style kya ho? (realistic/anime/3D/minimal/cinematic)',
+            default => 'Size/aspect ratio + constraints? (1:1/16:9 + text/no text/colors)',
         };
     }
 
@@ -96,7 +110,7 @@ class OpenAIService implements AIProviderInterface
     protected function genericQuestion(int $count): string
     {
         return match ($count) {
-            0 => 'Theek hai. Aapko exactly kya chahiye? (1 line me)',
+            0 => 'Theek hai. Aapko kiske liye prompt chahiye? (logo/image/post/email etc)',
             1 => 'Ye kis audience ke liye hai?',
             2 => 'Final output me aapko kya mile to “done” maanoge? (1 line)',
             default => 'Koi must-have ya restriction? (example: Hindi only, short, formal)',
@@ -117,22 +131,57 @@ class OpenAIService implements AIProviderInterface
         $joined = mb_strtolower(implode(' ', array_map(fn ($m) => $m['content'], $userMessages)));
 
         if (str_contains($joined, 'logo')) {
-            return $this->buildLogoPrompt($userMessages);
+            return $this->wrapFinalPrompt($this->buildLogoPrompt($userMessages));
+        }
+
+        if ($this->looksLikeImageRequest($joined)) {
+            return $this->wrapFinalPrompt($this->buildImagePrompt($userMessages));
         }
 
         if ($this->looksLikeNamingRequest($joined)) {
-            return $this->buildNamingPrompt($userMessages);
+            return $this->wrapFinalPrompt($this->buildNamingPrompt($userMessages));
         }
 
         if (str_contains($joined, 'trip') || str_contains($joined, 'travel')) {
-            return $this->buildTripPrompt($userMessages);
+            return $this->wrapFinalPrompt($this->buildTripPrompt($userMessages));
         }
 
         if (str_contains($joined, 'bug') || str_contains($joined, 'error') || str_contains($joined, 'issue')) {
-            return $this->buildDebugPrompt($userMessages);
+            return $this->wrapFinalPrompt($this->buildDebugPrompt($userMessages));
         }
 
-        return $this->buildGenericPrompt($userMessages);
+        return $this->wrapFinalPrompt($this->buildGenericPrompt($userMessages));
+    }
+
+    protected function wrapFinalPrompt(string $prompt): string
+    {
+        return "Here is your prompt\n\n".$prompt;
+    }
+
+    protected function looksLikeImageRequest(string $text): bool
+    {
+        $keywords = [
+            'image',
+            'photo',
+            'picture',
+            'poster',
+            'banner',
+            'thumbnail',
+            'illustration',
+            'art',
+            'generate image',
+            'ai image',
+            'midjourney',
+            'stable diffusion',
+        ];
+
+        foreach ($keywords as $kw) {
+            if (str_contains($text, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function looksLikeNamingRequest(string $text): bool
@@ -171,6 +220,24 @@ class OpenAIService implements AIProviderInterface
             $audience !== '' ? $audience : 'general customers',
             $style !== '' ? $style : 'clean, modern',
             $constraints !== '' ? $constraints : 'no hard constraints mentioned',
+        );
+    }
+
+    protected function buildImagePrompt(array $userMessages): string
+    {
+        $initial = $userMessages[0]['content'] ?? '';
+        $purpose = $userMessages[1]['content'] ?? '';
+        $subject = $userMessages[2]['content'] ?? '';
+        $style = $userMessages[3]['content'] ?? '';
+        $constraints = $userMessages[4]['content'] ?? '';
+
+        return sprintf(
+            'Create a high-quality image generation prompt. Request: %s. Purpose: %s. Main subject & context: %s. Style: %s. Size/aspect & constraints: %s. Output: one polished prompt suitable for any image model.',
+            $initial !== '' ? $initial : 'image request',
+            $purpose !== '' ? $purpose : 'not specified',
+            $subject !== '' ? $subject : 'not specified',
+            $style !== '' ? $style : 'not specified',
+            $constraints !== '' ? $constraints : 'not specified',
         );
     }
 
