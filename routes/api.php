@@ -77,11 +77,13 @@ Route::middleware(['auth:sanctum', 'user.active'])->group(function () {
 
     Route::get('/pre-prompts', [UserPrePromptController::class, 'index']);
     Route::get('/learn', [UserLearnController::class, 'index']);
+    Route::post('/learn/{learnVideo}/view', [UserLearnController::class, 'view']);
 
     Route::get('/reels', [UserReelController::class, 'index']);
     Route::post('/reels/{reel}/like', [UserReelController::class, 'toggleLike']);
     Route::post('/reels/{reel}/save', [UserReelController::class, 'toggleSave']);
     Route::post('/reels/{reel}/share', [UserReelController::class, 'share']);
+    Route::post('/reels/{reel}/view', [UserReelController::class, 'view']);
     Route::get('/reels/{reel}/comments', [UserReelCommentController::class, 'index']);
     Route::post('/reels/{reel}/comments', [UserReelCommentController::class, 'store']);
 });

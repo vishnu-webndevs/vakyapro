@@ -192,4 +192,47 @@ class ReelController extends Controller
             'shares_count' => $result,
         ]);
     }
+
+    public function view(Request $request, Reel $reel)
+    {
+        $data = $request->validate([
+            'watch_duration_ms' => ['nullable', 'integer', 'min:0', 'max:86400000'],
+            'is_completed' => ['nullable', 'boolean'],
+        ]);
+
+        $userId = (int) $request->user()->id;
+        $watchMs = (int) ($data['watch_duration_ms'] ?? 0);
+        $isCompleted = (bool) ($data['is_completed'] ?? false);
+        $minMs = (int) env('WATCH_VIEW_MIN_MS', 1000);
+
+        $result = DB::transaction(function () use ($reel, $userId, $watchMs, $isCompleted, $minMs) {
+            DB::table('reel_view_events')->insert([
+                'reel_id' => $reel->id,
+                'user_id' => $userId,
+                'watch_duration_ms' => $watchMs,
+                'is_completed' => $isCompleted,
+                'created_at' => now(),
+            ]);
+
+            $updates = [
+                'watch_time_ms' => DB::raw('watch_time_ms + '.(int) $watchMs),
+            ];
+
+            if ($watchMs >= $minMs) {
+                $updates['views_count'] = DB::raw('views_count + 1');
+            }
+
+            DB::table('reels')->where('id', $reel->id)->update($updates);
+
+            return [
+                'views_count' => (int) DB::table('reels')->where('id', $reel->id)->value('views_count'),
+                'watch_time_ms' => (int) DB::table('reels')->where('id', $reel->id)->value('watch_time_ms'),
+            ];
+        });
+
+        return response()->json([
+            'views_count' => $result['views_count'],
+            'watch_time_ms' => $result['watch_time_ms'],
+        ]);
+    }
 }
