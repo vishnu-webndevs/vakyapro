@@ -33,7 +33,8 @@ class LearnWatchController extends Controller
                 'watch_time_ms' => DB::raw('watch_time_ms + '.(int) $watchMs),
             ];
 
-            if ($watchMs >= 3000) {
+            $minMs = (int) env('WATCH_VIEW_MIN_MS', 1000);
+            if ($watchMs >= $minMs) {
                 $updates['views_count'] = DB::raw('views_count + 1');
             }
 
@@ -51,4 +52,3 @@ class LearnWatchController extends Controller
         ]);
     }
 }
-
