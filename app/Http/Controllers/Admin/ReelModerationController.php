@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminActivity;
 use App\Models\Reel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ReelModerationController extends Controller
@@ -87,6 +89,21 @@ class ReelModerationController extends Controller
             return [$nextVisible, $count];
         });
 
+        $adminId = Auth::guard('admin')->id();
+        if ($adminId) {
+            AdminActivity::create([
+                'admin_id' => $adminId,
+                'action' => $result[0] ? 'reel_comment_unhidden' : 'reel_comment_hidden',
+                'resource_type' => Reel::class,
+                'resource_id' => (int) $row->reel_id,
+                'meta' => [
+                    'comment_id' => (int) $row->id,
+                    'user_id' => (int) $row->user_id,
+                    'is_visible' => (bool) $result[0],
+                ],
+            ]);
+        }
+
         return response()->json([
             'is_visible' => $result[0],
             'comments_count' => $result[1],
@@ -113,6 +130,21 @@ class ReelModerationController extends Controller
 
             return (int) DB::table('reels')->where('id', $row->reel_id)->value('comments_count');
         });
+
+        $adminId = Auth::guard('admin')->id();
+        if ($adminId) {
+            AdminActivity::create([
+                'admin_id' => $adminId,
+                'action' => 'reel_comment_deleted',
+                'resource_type' => Reel::class,
+                'resource_id' => (int) $row->reel_id,
+                'meta' => [
+                    'comment_id' => (int) $row->id,
+                    'user_id' => (int) $row->user_id,
+                    'was_visible' => (bool) $row->is_visible,
+                ],
+            ]);
+        }
 
         return response()->json([
             'message' => 'Deleted',
@@ -171,4 +203,3 @@ class ReelModerationController extends Controller
         return response()->json($items);
     }
 }
-
