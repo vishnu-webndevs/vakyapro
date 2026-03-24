@@ -184,29 +184,66 @@ class SettingsController extends Controller
             return response()->json(['message' => 'app_settings table is missing. Run migrations.'], 409);
         }
 
-        $data = $request->validate([
-            'file' => ['required', 'file', 'image', 'max:5120'],
-            'setting_key' => ['nullable', 'string', 'max:255'],
-        ]);
+        try {
+            $data = $request->validate([
+                'file' => ['required', 'file', 'image', 'max:5120'],
+                'setting_key' => ['nullable', 'string', 'max:255'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
-        $file = $request->file('file');
-        $extension = $file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg';
-        $prefix = $data['setting_key'] ? preg_replace('/[^A-Za-z0-9_\-]/', '_', $data['setting_key']) : 'app_setting';
-        $filename = $prefix.'_'.Str::uuid().'.'.$extension;
+        try {
+            $file = $request->file('file');
+            if (! $file) {
+                throw ValidationException::withMessages([
+                    'file' => ['File is required.'],
+                ]);
+            }
 
-        $path = $file->storePubliclyAs('app-settings', $filename, 'public');
-        $publicPath = '/storage/'.ltrim($path, '/');
-        $baseUrl = $request->getSchemeAndHttpHost();
-        $absoluteUrl = str_starts_with($publicPath, 'http://') || str_starts_with($publicPath, 'https://')
-            ? $publicPath
-            : rtrim($baseUrl, '/').'/'.ltrim($publicPath, '/');
+            $extension = $file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg';
+            $prefix = $data['setting_key'] ? preg_replace('/[^A-Za-z0-9_\-]/', '_', $data['setting_key']) : 'app_setting';
+            $filename = $prefix.'_'.Str::uuid().'.'.$extension;
 
-        return response()->json([
-            'data' => [
-                'path' => $path,
-                'url' => $absoluteUrl,
-            ],
-        ]);
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            $disk->makeDirectory('app-settings');
+
+            $path = $file->storePubliclyAs('app-settings', $filename, 'public');
+            if (! is_string($path) || $path === '') {
+                throw new \RuntimeException('File storage failed.');
+            }
+
+            $publicPath = '/storage/'.ltrim($path, '/');
+            $baseUrl = $request->getSchemeAndHttpHost();
+            $absoluteUrl = str_starts_with($publicPath, 'http://') || str_starts_with($publicPath, 'https://')
+                ? $publicPath
+                : rtrim($baseUrl, '/').'/'.ltrim($publicPath, '/');
+
+            return response()->json([
+                'data' => [
+                    'path' => $path,
+                    'url' => $absoluteUrl,
+                ],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (Throwable $e) {
+            Log::error('App setting file upload failed', [
+                'admin_id' => Auth::id(),
+                'setting_key' => $data['setting_key'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to upload file. Please try again later.',
+            ], 500);
+        }
     }
 
     public function testMail(Request $request)
