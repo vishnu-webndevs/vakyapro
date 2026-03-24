@@ -21,3 +21,5 @@ RUN php artisan storage:link || true
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
+
+CMD ["bash", "-lc", "php artisan storage:link || true; apache2-foreground"]
