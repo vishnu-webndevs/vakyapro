@@ -380,7 +380,23 @@ class AuthController extends Controller
             if ($avatar === null || $avatar === '') {
                 $user->avatar = null;
             } elseif (str_starts_with($avatar, 'data:image/')) {
-                $user->avatar = $this->storeAvatarDataUrl($request, $avatar);
+                try {
+                    $user->avatar = $this->storeAvatarDataUrl($request, $avatar);
+                } catch (ValidationException $e) {
+                    return response()->json([
+                        'message' => $e->getMessage(),
+                        'errors' => $e->errors(),
+                    ], 422);
+                } catch (Throwable $e) {
+                    Log::error('Profile avatar data-url upload failed', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Unable to update avatar. Please try again later.',
+                    ], 500);
+                }
             } else {
                 $user->avatar = $avatar;
             }
@@ -697,7 +713,9 @@ class AuthController extends Controller
         };
 
         $relativePath = 'avatars/'.Str::uuid().'.'.$extension;
-        $stored = Storage::disk('public')->put($relativePath, $bytes);
+        $disk = Storage::disk('public');
+        $disk->makeDirectory('avatars');
+        $stored = $disk->put($relativePath, $bytes);
         if ($stored !== true) {
             throw new \RuntimeException('Unable to store avatar.');
         }
@@ -738,7 +756,9 @@ class AuthController extends Controller
         }
 
         $relativePath = 'avatars/'.Str::uuid().'.'.$extension;
-        $stored = Storage::disk('public')->put($relativePath, $bytes);
+        $disk = Storage::disk('public');
+        $disk->makeDirectory('avatars');
+        $stored = $disk->put($relativePath, $bytes);
         if ($stored !== true) {
             throw new \RuntimeException('Unable to store avatar.');
         }
