@@ -38,4 +38,11 @@
     <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
+    Header always set Access-Control-Allow-Origin "https://vakyapro.com"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin"
 </IfModule>
+
+# Handle CORS preflight directly at Apache for reliability
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=204,L]
