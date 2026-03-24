@@ -22,4 +22,4 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 EXPOSE 80
 
-CMD ["bash", "-lc", "php artisan storage:link || true; apache2-foreground"]
+CMD ["bash", "-lc", "set -e; mkdir -p storage/app/public storage/app/public/app-settings storage/app/public/avatars storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache; chown -R www-data:www-data storage bootstrap/cache; chmod -R ug+rwX storage bootstrap/cache; php artisan storage:link || true; apache2-foreground"]
