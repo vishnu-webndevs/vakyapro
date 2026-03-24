@@ -11,27 +11,62 @@ class LearnController extends Controller
 {
     public function index(Request $request)
     {
-        $items = LearnVideo::query()
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get([
-                'id',
-                'title',
-                'description',
-                'category',
-                'video_url',
-                'thumbnail_url',
-                'duration',
-                'sort_order',
-                'is_active',
-                'views_count',
-            ]);
+        $category = trim((string) $request->input('category', ''));
+        $sort = strtolower(trim((string) $request->input('sort', 'latest')));
+
+        $query = LearnVideo::query()
+            ->where('is_active', true);
+
+        if ($category !== '') {
+            $query->where('category', $category);
+        }
+
+        if ($sort === 'trending') {
+            $query->orderByDesc('views_count')
+                ->orderByDesc('watch_time_ms')
+                ->orderByDesc('created_at');
+        } else {
+            $query->orderByDesc('created_at')
+                ->orderBy('sort_order')
+                ->orderBy('id');
+        }
+
+        $items = $query->get([
+            'id',
+            'title',
+            'description',
+            'category',
+            'video_url',
+            'thumbnail_url',
+            'duration',
+            'sort_order',
+            'is_active',
+            'views_count',
+            'watch_time_ms',
+            'created_at',
+        ]);
 
         return response()->json([
             'success' => true,
             'data' => $items,
         ]);
+    }
+
+    public function categories(Request $request)
+    {
+        $rows = LearnVideo::query()
+            ->where('is_active', true)
+            ->select(['category', DB::raw('COUNT(*) as count')])
+            ->groupBy('category')
+            ->orderBy('category')
+            ->get();
+
+        $data = $rows->map(fn ($r) => [
+            'name' => (string) $r->category,
+            'count' => (int) $r->count,
+        ]);
+
+        return response()->json(['data' => $data]);
     }
 
     public function view(Request $request, LearnVideo $learnVideo)

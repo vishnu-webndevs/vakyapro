@@ -330,14 +330,48 @@ class AuthController extends Controller
 
     public function updateProfile(Request $request)
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'avatar' => ['sometimes', 'nullable', 'string'],
-        ]);
+        try {
+            $data = $request->validate([
+                'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'avatar' => ['sometimes', 'nullable', 'string'],
+                'avatar_file' => ['sometimes', 'file', 'image', 'max:5120'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
         $user = $request->user();
+        if (! $user) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
         if (array_key_exists('name', $data)) {
             $user->name = $data['name'];
+        }
+
+        if ($request->hasFile('avatar_file')) {
+            try {
+                $user->avatar = $this->storeAvatarFile($request);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                ], 422);
+            } catch (Throwable $e) {
+                Log::error('Profile avatar upload failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Unable to update avatar. Please try again later.',
+                ], 500);
+            }
         }
 
         if (array_key_exists('avatar', $data)) {
@@ -352,7 +386,18 @@ class AuthController extends Controller
             }
         }
 
-        $user->save();
+        try {
+            $user->save();
+        } catch (Throwable $e) {
+            Log::error('Profile update failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to update profile. Please try again later.',
+            ], 500);
+        }
 
         return response()->json($user);
     }
@@ -652,7 +697,51 @@ class AuthController extends Controller
         };
 
         $relativePath = 'avatars/'.Str::uuid().'.'.$extension;
-        Storage::disk('public')->put($relativePath, $bytes);
+        $stored = Storage::disk('public')->put($relativePath, $bytes);
+        if ($stored !== true) {
+            throw new \RuntimeException('Unable to store avatar.');
+        }
+
+        $publicPath = '/storage/'.ltrim($relativePath, '/');
+        $baseUrl = $request->getSchemeAndHttpHost();
+
+        return rtrim($baseUrl, '/').'/'.ltrim($publicPath, '/');
+    }
+
+    protected function storeAvatarFile(Request $request): string
+    {
+        $file = $request->file('avatar_file');
+        if (! $file) {
+            throw ValidationException::withMessages([
+                'avatar_file' => ['Avatar file is required.'],
+            ]);
+        }
+
+        $mime = (string) ($file->getMimeType() ?? '');
+        $extension = match ($mime) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'jpg',
+        };
+
+        $bytes = @file_get_contents($file->getRealPath());
+        if (! is_string($bytes) || $bytes === '') {
+            throw ValidationException::withMessages([
+                'avatar_file' => ['Invalid avatar file.'],
+            ]);
+        }
+
+        if (strlen($bytes) > 5 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                'avatar_file' => ['Avatar image is too large.'],
+            ]);
+        }
+
+        $relativePath = 'avatars/'.Str::uuid().'.'.$extension;
+        $stored = Storage::disk('public')->put($relativePath, $bytes);
+        if ($stored !== true) {
+            throw new \RuntimeException('Unable to store avatar.');
+        }
 
         $publicPath = '/storage/'.ltrim($relativePath, '/');
         $baseUrl = $request->getSchemeAndHttpHost();

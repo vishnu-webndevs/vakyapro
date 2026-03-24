@@ -7,6 +7,7 @@ use App\Models\AdminActivity;
 use App\Models\AppSetting;
 use App\Models\ServiceApiKey;
 use App\Models\ServiceApiKeyBackup;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -296,16 +297,24 @@ class SettingsController extends Controller
                 'last_four' => null,
                 'updated_at' => null,
                 'has_backup' => false,
+                'is_decryptable' => false,
             ];
         }
 
         $hasBackup = ServiceApiKeyBackup::where('service_api_key_id', $key->id)->exists();
+        $isDecryptable = true;
+        try {
+            decrypt($key->key_encrypted);
+        } catch (DecryptException $e) {
+            $isDecryptable = false;
+        }
 
         return [
             'has_key' => true,
             'last_four' => $key->last_four,
             'updated_at' => $key->updated_at?->toIso8601String(),
             'has_backup' => $hasBackup,
+            'is_decryptable' => $isDecryptable,
         ];
     }
 

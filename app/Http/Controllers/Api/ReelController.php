@@ -13,10 +13,10 @@ class ReelController extends Controller
     {
         $userId = (int) $request->user()->id;
 
+        $sort = strtolower(trim((string) $request->input('sort', 'latest')));
+
         $query = Reel::query()
             ->where('is_active', true)
-            ->orderBy('order')
-            ->orderByDesc('created_at')
             ->select([
                 'id',
                 'title',
@@ -38,6 +38,16 @@ class ReelController extends Controller
             ->addSelect([
                 'is_shared' => DB::raw('EXISTS (select 1 from reel_shares where reel_shares.reel_id = reels.id and reel_shares.user_id = '.(int) $userId.')'),
             ]);
+
+        if ($sort === 'trending') {
+            $query->orderByDesc('views_count')
+                ->orderByDesc('likes_count')
+                ->orderByDesc('shares_count')
+                ->orderByDesc('created_at');
+        } else {
+            $query->orderBy('order')
+                ->orderByDesc('created_at');
+        }
 
         if ($request->boolean('saved_only')) {
             $query->whereExists(function ($q) use ($userId) {

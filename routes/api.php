@@ -19,12 +19,19 @@ use App\Http\Controllers\Api\LearnController as UserLearnController;
 use App\Http\Controllers\Api\AiController as UserAiController;
 use App\Http\Controllers\Api\AppSettingController as UserAppSettingController;
 use App\Http\Controllers\Api\AuthController as UserAuthController;
+use App\Http\Controllers\Api\BlogController as UserBlogController;
+use App\Http\Controllers\Api\CategoryController as UserCategoryController;
 use App\Http\Controllers\Api\ChatSessionController as UserChatSessionController;
 use App\Http\Controllers\Api\PrePromptController as UserPrePromptController;
 use App\Http\Controllers\Api\PromptController as UserPromptController;
+use App\Http\Controllers\Api\PageController as UserPageController;
 use App\Http\Controllers\Api\ReelCommentController as UserReelCommentController;
 use App\Http\Controllers\Api\ReelController as UserReelController;
+use App\Http\Controllers\Api\ContactController as UserContactController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\BlogController as AdminBlogController;
+use App\Http\Controllers\Admin\BlogCategoryController as AdminBlogCategoryController;
+use App\Http\Controllers\Admin\PageController as AdminPageController;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,6 +53,12 @@ Route::post('/auth/password/reset', [UserAuthController::class, 'passwordReset']
 Route::get('/plans', [PlanController::class, 'publicIndex']);
 Route::get('/app-settings', [UserAppSettingController::class, 'index']);
 Route::get('/app-settings/{settingKey}', [UserAppSettingController::class, 'show']);
+Route::get('/blogs', [UserBlogController::class, 'index']);
+Route::get('/blogs/{slug}', [UserBlogController::class, 'show']);
+Route::get('/categories', [UserCategoryController::class, 'index']);
+Route::get('/categories/{slug}/blogs', [UserCategoryController::class, 'blogs']);
+Route::get('/pages/{slug}', [UserPageController::class, 'show']);
+Route::post('/contact', [UserContactController::class, 'store']);
 
 // Protected User Routes
 Route::middleware(['auth:sanctum', 'user.active'])->group(function () {
@@ -75,7 +88,9 @@ Route::middleware(['auth:sanctum', 'user.active'])->group(function () {
     Route::post('/ai/chat/stream', [UserAiController::class, 'chatStream']);
 
     Route::get('/pre-prompts', [UserPrePromptController::class, 'index']);
+    Route::get('/pre-prompts/categories', [UserPrePromptController::class, 'categories']);
     Route::get('/learn', [UserLearnController::class, 'index']);
+    Route::get('/learn/categories', [UserLearnController::class, 'categories']);
     Route::post('/learn/{learnVideo}/view', [UserLearnController::class, 'view']);
 
     Route::get('/reels', [UserReelController::class, 'index']);
@@ -126,6 +141,11 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::apiResource('pre-prompts', PrePromptController::class)->parameters(['pre-prompts' => 'prePrompt']);
         Route::apiResource('learn', LearnVideoController::class)->parameters(['learn' => 'learnVideo']);
         Route::apiResource('reels', AdminReelController::class)->parameters(['reels' => 'reel']);
+        Route::post('/blogs/generate-content', [AdminBlogController::class, 'generateContent']);
+        Route::apiResource('blogs', AdminBlogController::class);
+        Route::apiResource('blog-categories', AdminBlogCategoryController::class)->parameters(['blog-categories' => 'category']);
+        Route::post('/pages/generate-content', [AdminPageController::class, 'generateContent']);
+        Route::apiResource('pages', AdminPageController::class);
         Route::get('/reels/{reel}/comments', [ReelModerationController::class, 'comments']);
         Route::put('/reel-comments/{id}/visibility', [ReelModerationController::class, 'setCommentVisibility']);
         Route::delete('/reel-comments/{id}', [ReelModerationController::class, 'deleteComment']);
