@@ -161,6 +161,9 @@ class OpenAIService implements AIProviderInterface
             $userMessages[] = ['role' => 'user', 'content' => $latestUserMessage];
         }
 
+        // Limit the number of messages to avoid exceeding token limits
+        $userMessages = array_slice($userMessages, -5);
+
         $joined = mb_strtolower(implode(' ', array_map(fn ($m) => $m['content'], $userMessages)));
 
         if (str_contains($joined, 'logo')) {
