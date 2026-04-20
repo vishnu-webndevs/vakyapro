@@ -171,7 +171,7 @@ class AiController extends Controller
 
         try {
             $result = $this->openai->chatCompletion($data['messages'], [
-                'model' => $data['model'] ?? null,
+                'model' => 'gpt-4o',
                 'temperature' => $data['temperature'] ?? null,
             ]);
         } catch (Throwable $e) {
@@ -233,7 +233,7 @@ class AiController extends Controller
 
         try {
             $result = $this->openai->chatCompletion($data['messages'], [
-                'model' => $data['model'] ?? null,
+                'model' => 'gpt-4o',
                 'temperature' => $data['temperature'] ?? null,
             ]);
         } catch (Throwable $e) {
