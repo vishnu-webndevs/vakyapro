@@ -29,6 +29,18 @@ class AiController extends Controller
                 continue;
             }
             $content = $m['content'] ?? '';
+
+            // Handle multi-modal content array
+            if (is_array($content)) {
+                $textParts = [];
+                foreach ($content as $part) {
+                    if (is_array($part) && ($part['type'] ?? '') === 'text') {
+                        $textParts[] = $part['text'] ?? '';
+                    }
+                }
+                $content = implode(' ', $textParts);
+            }
+
             if (! is_string($content)) {
                 continue;
             }
@@ -143,7 +155,7 @@ class AiController extends Controller
         $data = $request->validate([
             'messages' => ['required', 'array', 'min:1'],
             'messages.*.role' => ['required', 'string', 'in:system,user,assistant'],
-            'messages.*.content' => ['required', 'string'],
+            'messages.*.content' => ['required'], // Removed 'string' to allow arrays (multi-modal)
             'model' => ['nullable', 'string'],
             'temperature' => ['nullable', 'numeric', 'min:0', 'max:2'],
         ]);
@@ -196,7 +208,7 @@ class AiController extends Controller
         $data = $request->validate([
             'messages' => ['required', 'array', 'min:1'],
             'messages.*.role' => ['required', 'string', 'in:system,user,assistant'],
-            'messages.*.content' => ['required', 'string'],
+            'messages.*.content' => ['required'], // Removed 'string' to allow arrays (multi-modal)
             'model' => ['nullable', 'string'],
             'temperature' => ['nullable', 'numeric', 'min:0', 'max:2'],
         ]);
