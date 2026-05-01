@@ -28,6 +28,22 @@ class OpenAIService implements AIProviderInterface
             $history = [];
         }
 
+        // Check if there is an image in the history
+        $hasImage = false;
+        foreach ($history as $m) {
+            if (($m['role'] ?? null) === 'user') {
+                $content = $m['content'] ?? '';
+                if (is_array($content)) {
+                    foreach ($content as $part) {
+                        if (is_array($part) && ($part['type'] ?? '') === 'image_url') {
+                            $hasImage = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
         $attachmentSummary = $this->extractAttachmentSummary($prompt);
 
         $text = mb_strtolower($prompt);
@@ -36,7 +52,8 @@ class OpenAIService implements AIProviderInterface
             return $this->generateFinalPrompt('', $history);
         }
 
-        if ($questionCount >= $maxQuestions) {
+        // Force final prompt if an image is present to prioritize analysis over questions
+        if ($hasImage || $questionCount >= $maxQuestions) {
             return $this->generateFinalPrompt($prompt, $history);
         }
 
@@ -150,6 +167,27 @@ class OpenAIService implements AIProviderInterface
 
     protected function generateFinalPrompt(string $latestUserMessage, array $history): string
     {
+        $hasImage = false;
+        foreach ($history as $m) {
+            if (($m['role'] ?? null) === 'user' && is_array($m['content'] ?? null)) {
+                foreach ($m['content'] as $part) {
+                    if (is_array($part) && ($part['type'] ?? '') === 'image_url') {
+                        $hasImage = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($hasImage) {
+            $result = $this->chatCompletion($history, [
+                'model' => 'gpt-4o',
+                'temperature' => 0.7,
+            ]);
+
+            return trim((string) ($result['content'] ?? ''));
+        }
+
         $userMessages = array_values(array_filter(
             $history,
             fn ($m) => ($m['role'] ?? null) === 'user'

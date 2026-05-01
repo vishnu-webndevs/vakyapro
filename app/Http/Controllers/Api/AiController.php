@@ -18,6 +18,35 @@ class AiController extends Controller
         $this->openai = $openai;
     }
 
+    protected function findLastUserMessage(array $messages): ?array
+    {
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            $m = $messages[$i] ?? null;
+            if (is_array($m) && ($m['role'] ?? null) === 'user') {
+                return $m;
+            }
+        }
+
+        return null;
+    }
+
+    protected function hasImageInContent($content): bool
+    {
+        if (is_array($content)) {
+            foreach ($content as $part) {
+                if (is_array($part) && ($part['type'] ?? '') === 'image_url') {
+                    return true;
+                }
+            }
+        }
+
+        if (is_string($content) && (str_contains($content, 'data:image/') || str_contains($content, 'http'))) {
+            return true;
+        }
+
+        return false;
+    }
+
     protected function findLastUserContent(array $messages): string
     {
         for ($i = count($messages) - 1; $i >= 0; $i--) {
@@ -162,9 +191,13 @@ class AiController extends Controller
 
         $startedAt = microtime(true);
 
+        $lastUserMessage = $this->findLastUserMessage($data['messages']);
         $lastUserContent = $this->findLastUserContent($data['messages']);
-        if ($lastUserContent !== '' && $this->looksLikeUploadOrAttachment($lastUserContent)) {
+        $hasImage = $lastUserMessage && $this->hasImageInContent($lastUserMessage['content'] ?? '');
+
+        if ($lastUserContent !== '' && ($hasImage || $this->looksLikeUploadOrAttachment($lastUserContent))) {
             $questionCount = $this->inferPromptEngineQuestionCount($data['messages']);
+
             $content = $this->openai->generate($lastUserContent, [
                 'history' => $data['messages'],
                 'question_count' => $questionCount,
@@ -215,9 +248,13 @@ class AiController extends Controller
 
         $startedAt = microtime(true);
 
+        $lastUserMessage = $this->findLastUserMessage($data['messages']);
         $lastUserContent = $this->findLastUserContent($data['messages']);
-        if ($lastUserContent !== '' && $this->looksLikeUploadOrAttachment($lastUserContent)) {
+        $hasImage = $lastUserMessage && $this->hasImageInContent($lastUserMessage['content'] ?? '');
+
+        if ($lastUserContent !== '' && ($hasImage || $this->looksLikeUploadOrAttachment($lastUserContent))) {
             $questionCount = $this->inferPromptEngineQuestionCount($data['messages']);
+
             $content = $this->openai->generate($lastUserContent, [
                 'history' => $data['messages'],
                 'question_count' => $questionCount,
