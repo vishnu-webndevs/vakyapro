@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import BlogPost from '@/src/pages/BlogPost';
+import BlogPost, { BlogDetails } from '@/src/pages/BlogPost';
 import PublicLayout from '@/src/components/PublicLayout';
 import { getApiBaseUrl } from '@/src/config/apiBase';
 
@@ -147,7 +147,7 @@ export default async function BlogPostPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <BlogPost />
+      <BlogPost initialPost={postData as unknown as BlogDetails} />
     </PublicLayout>
   );
 }

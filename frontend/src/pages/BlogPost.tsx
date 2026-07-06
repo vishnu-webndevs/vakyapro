@@ -11,7 +11,7 @@ type Category = {
   slug: string
 }
 
-type BlogDetails = {
+export type BlogDetails = {
   id: number
   title: string
   slug: string
@@ -39,14 +39,18 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export default function BlogPost() {
+export default function BlogPost({
+  initialPost,
+}: {
+  initialPost?: BlogDetails | null
+}) {
   const params = useParams()
   const slug = params?.slug as string
   const apiBaseUrl = getApiBaseUrl()
-  const [post, setPost] = useState<BlogDetails | null>(null)
+  const [post, setPost] = useState<BlogDetails | null>(initialPost || null)
   const [categories, setCategories] = useState<Category[] | null>(null)
   const [latest, setLatest] = useState<BlogItem[] | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!initialPost)
   const [error, setError] = useState<string | null>(null)
 
   useMeta({
@@ -61,11 +65,38 @@ export default function BlogPost() {
   })
 
   useEffect(() => {
+    let cancelled = false
+
+    // Skip client-side fetch if initialPost matches the requested slug
+    if (initialPost && initialPost.slug === slug) {
+      // Still load categories and latest posts if empty
+      const loadSidebarOnly = async () => {
+        try {
+          const [categoriesRes, latestRes] = await Promise.all([
+            fetch(`${apiBaseUrl}/api/categories`, { headers: { Accept: 'application/json' } }),
+            fetch(`${apiBaseUrl}/api/blogs?per_page=7&page=1`, { headers: { Accept: 'application/json' } }),
+          ])
+          if (categoriesRes.ok) {
+            const categoriesData = (await categoriesRes.json()) as Category[]
+            if (!cancelled) setCategories(categoriesData)
+          }
+          if (latestRes.ok) {
+            const latestData = (await latestRes.json()) as Paginated<BlogItem>
+            if (!cancelled) setLatest(latestData.data ?? [])
+          }
+        } catch (e) {
+          console.error('Failed to load sidebar contents', e)
+        }
+      }
+      loadSidebarOnly()
+      return () => {
+        cancelled = true
+      }
+    }
+
     setLoading(true)
     setError(null)
     setPost(null)
-
-    let cancelled = false
 
     const load = async () => {
       try {
@@ -112,6 +143,7 @@ export default function BlogPost() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBaseUrl, slug])
 
   return (

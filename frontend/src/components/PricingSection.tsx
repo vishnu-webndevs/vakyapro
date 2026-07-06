@@ -148,9 +148,15 @@ export default function PricingSection({ variant = 'homepage' }: PricingSectionP
     >
       <div className="mx-auto max-w-6xl">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
-            {heading}
-          </h2>
+          {variant === 'full' ? (
+            <h1 className="text-3xl font-bold tracking-tight text-slate-50 sm:text-4xl">
+              {heading}
+            </h1>
+          ) : (
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
+              {heading}
+            </h2>
+          )}
           <p className="mt-3 text-sm text-slate-400 max-w-xl mx-auto">{subheading}</p>
         </div>
 

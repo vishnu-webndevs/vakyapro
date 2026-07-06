@@ -44,14 +44,20 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export default function BlogIndex() {
+export default function BlogIndex({
+  initialBlogs,
+  initialCategories,
+}: {
+  initialBlogs?: Paginated<BlogItem> | null
+  initialCategories?: Category[] | null
+}) {
   const apiBaseUrl = getApiBaseUrl()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [blogs, setBlogs] = useState<Paginated<BlogItem> | null>(null)
-  const [categories, setCategories] = useState<Category[] | null>(null)
+  const [blogs, setBlogs] = useState<Paginated<BlogItem> | null>(initialBlogs || null)
+  const [categories, setCategories] = useState<Category[] | null>(initialCategories || null)
   const [latest, setLatest] = useState<BlogItem[] | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!initialBlogs)
   const [error, setError] = useState<string | null>(null)
 
   useMeta({
@@ -75,6 +81,26 @@ export default function BlogIndex() {
 
   useEffect(() => {
     let cancelled = false
+
+    // Skip client fetch on initial load if server data exists
+    if (initialBlogs && page === 1 && !categorySlug) {
+      const loadSidebarOnly = async () => {
+        try {
+          const latestResponse = await fetch(`${apiBaseUrl}/api/blogs?per_page=7&page=1`, { headers: { Accept: 'application/json' } })
+          if (latestResponse.ok) {
+            const latestData = (await latestResponse.json()) as Paginated<BlogItem>
+            if (!cancelled) setLatest(latestData.data ?? [])
+          }
+        } catch (e) {
+          console.error('Failed to load sidebar latest posts', e)
+        }
+      }
+      loadSidebarOnly()
+      return () => {
+        cancelled = true
+      }
+    }
+
     setLoading(true)
     setError(null)
 
@@ -132,6 +158,7 @@ export default function BlogIndex() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBaseUrl, categorySlug, page])
 
   const setCategory = (slug: string | null) => {
@@ -152,15 +179,13 @@ export default function BlogIndex() {
   }
 
   return (
-    <div className="pt-24 pb-16">
+    <div className="pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8 lg:flex-row">
           <div className="flex-1">
-            <header className="mb-6">
-              <h1 className="text-3xl sm:text-4xl font-bold">Blog</h1>
-              <p className="mt-2 text-gray-400">Guides, tips, and updates about prompts and productivity.</p>
-              {categorySlug && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-gray-300">
+            {categorySlug && (
+              <header className="mb-6">
+                <div className="flex items-center gap-2 text-sm text-gray-300">
                   <span>Category:</span>
                   <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-cyan-100">
                     {categorySlug}
@@ -169,8 +194,8 @@ export default function BlogIndex() {
                     Clear
                   </button>
                 </div>
-              )}
-            </header>
+              </header>
+            )}
 
             {error && <div className="mb-4 rounded-xl border border-rose-600/60 bg-rose-950/30 px-4 py-3 text-sm text-rose-100">{error}</div>}
             {loading && <p className="text-gray-400">Loading…</p>}
